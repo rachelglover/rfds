@@ -1,0 +1,388 @@
+<?php
+
+/**
+ * @file
+ * This file contains the installation/enable/disable functions, including
+ * the database schema. 
+ */
+
+/**
+ * Implements hook_schema()
+ */
+function rfds_schema() {
+  $schema['rfds_firearms'] = array(
+    'description' => 'Table to hold the details of each firearm or product held',
+    'fields' => array(
+      'id' => array(
+        'description' => 'stock ID number, autoincrement',
+        'type' => 'serial',
+        'not null' => TRUE, //required
+      ),
+      'recorded_by' => array(
+        'description' => 'EK uid or RS uid',
+        'type' => 'int',
+        'not null' => TRUE, //required
+      ),
+      'type' => array(
+        'description' => 'e.g. rifle, shotgun, air rifle, 22RF etc',
+        'type' => 'text',
+        'not null' => TRUE, //required
+      ),
+      'serial_number' => array(
+        'description' => 'Serial number of the firearm',
+        'type' => 'text',
+        'not null' => FALSE, //possible no serial
+      ),
+      'description' => array(
+        'description' => 'Additional information about the firearm',
+        'type' => 'text',
+        'not null' => FALSE, //possible no additional description
+      ),
+      'supplied_by' => array(
+        'description' => 'Full name of whoever supplied the firearm',
+        'type' => 'text',
+        'not null' => TRUE, //required
+      ),
+      'supplied_by_certificate' => array(
+        'description' => 'Certificate number of the person who supplied the firearm',
+        'type' => 'text',
+        'not null' => TRUE, //required
+      ),
+      'supplied_by_certificate_valid_from' => array(
+        'description' => 'valid from date on fac. unix timestamp',
+        'type' => 'int',
+        'not null' => TRUE, //required
+      ),
+      'supplied_by_certificate_valid_to' => array(
+        'description' => 'valid to from date on fac. unix timestamp',
+        'type' => 'int',
+        'not null' => TRUE, //required
+      ),
+      'date_supplied' => array(
+        'description' => 'Date in, unix timestamp',
+        'type' => 'int',
+        'not null' => TRUE, //required
+      ),
+      'supplied_by_address_1' => array(
+        'description' => 'address line 1',
+        'type' => 'text',
+        'not null' => TRUE, //required
+      ),
+      'supplied_by_address_2' => array(
+        'description' => 'address line 2',
+        'type' => 'text',
+        'not null' => FALSE, //optional
+      ),
+      'supplied_by_address_town' => array(
+        'description' => 'address line 2',
+        'type' => 'text',
+        'not null' => TRUE, //true
+      ),
+      'supplied_by_address_county' => array(
+        'description' => 'address county',
+        'type' => 'text',
+        'not null' => TRUE, //required
+      ),
+      'supplied_by_address_postcode' => array(
+        'description' => 'address post code',
+        'type' => 'text',
+        'not null' => TRUE, //required
+      ),
+      'supplied_price' => array(
+        'description' => 'Price bought for',
+        'type' => 'float',
+        'not null' => FALSE, //not required
+      ),
+      'stock_location' => array(
+        'description' => 'Location of the firearm',
+        'type' => 'text',
+        'not null' => FALSE, //possible no additional location
+      ),
+      'status' => array(
+        'description' => 'Status: stock,sold,lent',
+        'type' => 'text',
+        'not null' => TRUE, //required
+      ),
+      'timestamp' => array(
+        'description' => 'Input timestamp',
+        'type' => 'int',
+        'not null' => TRUE, //required
+      ),
+    ),
+    'primary key' => array('id')
+  );
+  $schema['rfds_ammo'] = array(
+    'description' => 'This table holds current ammo stocks',
+    'fields' => array(
+      'id' => array(
+        'description' => 'The unique ammo ID. Auto increment',
+        'type' => 'serial',
+        'not null' => TRUE,//required
+      ),
+      'recorded_by' => array(
+        'description' => 'EK or RS',
+        'type' => 'int',
+        'not null' => TRUE, //required
+      ),
+      'type' => array(
+        'description' => 'Table ref ID to manufacturer and make [table: rfd_ammo_types]',
+        'type' => 'int',
+        'not null' => TRUE,//required
+      ),
+      'batch' => array(
+        'description' => 'The batch number of this type of ammo',
+        'type' => 'text',
+        'not null' => FALSE, //not required
+      ),
+      'quantity' => array(
+        'description' => 'Current quantity of this batch of ammo IN ROUNDS',
+        'type' => 'int',
+        'not null' => TRUE, //not required
+      ),
+      'cost' => array(
+        'description' => 'ammo purchase cost',
+        'type' => 'float',
+        'not null' => TRUE, //not required
+      ),
+      'timestamp' => array(
+        'description' => 'Input timestamp',
+        'type' => 'int',
+        'not null' => TRUE, //required
+      ),
+    ),
+    'primary key' => array('id')
+   );
+   $schema['rfds_ammo_types'] = array(
+    'description' => 'This table holds the manufacturer and make of ammunition',
+    'fields' => array(
+      'id' => array(
+        'description' => 'The unique ammo type ID. Auto increment',
+        'type' => 'serial',
+        'not null' => TRUE, //required
+      ),
+      'recorded_by' => array(
+        'description' => 'EK or RS',
+        'type' => 'int',
+        'not null' => TRUE, //required
+      ),
+      'manufacturer' => array(
+        'description' => 'The manufacturer of the ammo',
+        'type' => 'text',
+        'not null' => TRUE,//required
+      ),
+      'product' => array(
+        'description' => 'The ammo product (e.g. Tenex, Club, Edge)',
+        'type' => 'text',
+        'not null' => TRUE,//required
+      ),
+      'timestamp' => array(
+        'description' => 'Input timestamp',
+        'type' => 'int',
+        'not null' => TRUE, //required
+      ),
+    ),
+    'primary key' => array('id'),
+   );
+   $schema['rfds_firearm_movements'] = array(
+    'description' => 'This table holds all movements of firearms',
+    'fields' => array(
+      'id' => array(
+        'description' => 'The unique id asociated with this movement. Auto increment',
+        'type' => 'serial',
+        'not null' => TRUE, //required
+      ),
+      'recorded_by' => array(
+        'description' => 'EK or RS',
+        'type' => 'int',
+        'not null' => TRUE, //required
+      ),
+      'movement_type' => array(
+        'description' => 'movement type: acquired,sold,lent',
+        'type' => 'text',
+        'not null' => TRUE, //required
+      ),
+      'firearm' => array(
+        'description' => 'The firearm ID from the firearms table',
+        'type' => 'int',
+        'not null' => TRUE, //required
+      ),
+      'police_notification' => array(
+        'description' => 'Police notification required? Y/N',
+        'type' => 'int',
+        'not null' => TRUE, //required (0/1)
+      ),
+      'police_notification_email_address' => array(
+        'description' => 'Email address used to notify the police',
+        'type' => 'text',
+        'not null' => FALSE, //null if not required
+      ),
+      'supplied_to' => array(
+        'description' => 'if sold or lent, who to (full name)',
+        'type' => 'text',
+        'not null' => FALSE, //null if acquiring.
+      ),
+      'supplied_to_certificate' => array(
+        'description' => 'if sold or lent, who to (certificate)',
+        'type' => 'text',
+        'not null' => FALSE, //null if acquiring.
+      ),
+      'supplied_to_certificate_valid_from' => array(
+        'description' => 'fac valid from. unix timestamp',
+        'type' => 'int',
+        'not null' => False, //NULL if acquiring
+      ),
+      'supplied_to_certificate_valid_to' => array(
+        'description' => 'fac valid to. unix timestamp',
+        'type' => 'int',
+        'not null' => FALSE,
+      ),
+      'supplied_to_address_1' => array(
+        'description' => 'address line 1',
+        'type' => 'text',
+        'not null' => FALSE,
+      ),
+      'supplied_to_address_2' => array(
+        'description' => 'address line 2',
+        'type' => 'text',
+        'not null' => FALSE,
+      ),
+      'supplied_to_address_town' => array(
+        'description' => 'address town',
+        'type' => 'text',
+        'not null' => FALSE,
+      ),
+      'supplied_to_address_county' => array(
+        'description' => 'address county',
+        'type' => 'text',
+        'not null' => FALSE,
+      ),
+      'supplied_to_address_postcode' => array(
+        'description' => 'address postcode',
+        'type' => 'text',
+        'not null' => FALSE,
+      ),
+      'supplied_price' => array(
+        'description' => 'price supplied',
+        'type' => 'float',
+        'not null' => FALSE,
+      ),
+      'date' => array(
+        'description' => 'Unix timestamp - movement date',
+        'type' => 'int',
+        'not null' => TRUE, //required
+      ),
+      'comments' => array(
+        'description' => 'Any comments regarding this movement',
+        'type' => 'text',
+        'not null' => FALSE, //not required. 
+      ),
+      'timestamp' => array(
+        'description' => 'Input timestamp',
+        'type' => 'int',
+        'not null' => TRUE, //required
+      ),
+    ),
+    'primary key' => array('id'),
+   );
+   $schema['rfds_ammo_movements'] = array(
+    'description' => 'This table holds ammo movements',
+    'fields' => array(
+      'id' => array(
+        'description' => 'Unique ID, auto increment',
+        'type' => 'serial',
+        'not null' => TRUE, //required
+      ),
+      'ammo' => array(
+        'description' => 'unique ammo id',
+        'type' => 'int',
+        'not null' => TRUE, //required
+      ),
+      'num_rounds' => array(
+        'description' => 'Number of rounds sold',
+        'type' => 'int',
+        'not null' => TRUE, //required
+      ),
+      'recorded_by' => array(
+        'description' => 'EK or RS',
+        'type' => 'int',
+        'not null' => TRUE, //required
+      ),
+      'supplied_to' => array(
+        'description' => 'Supplied to name',
+        'type' => 'text',
+        'not null' => TRUE, //required
+      ),
+      'supplied_to_certificate' => array(
+        'description' => 'Supplied to certificate',
+        'type' => 'text',
+        'not null' => TRUE, //required
+      ),
+      'supplied_to_certificate_valid_from' => array(
+        'description' => 'fac valid from. unix timestamp',
+        'type' => 'int',
+        'not null' => False, //NULL if acquiring
+      ),
+      'supplied_to_certificate_valid_to' => array(
+        'description' => 'fac valid to. unix timestamp',
+        'type' => 'int',
+        'not null' => FALSE,
+      ),
+      'supplied_to_address_1' => array(
+        'description' => 'address line 1',
+        'type' => 'text',
+        'not null' => FALSE,
+      ),
+      'supplied_to_address_2' => array(
+        'description' => 'address line 2',
+        'type' => 'text',
+        'not null' => FALSE,
+      ),
+      'supplied_to_address_town' => array(
+        'description' => 'address town',
+        'type' => 'text',
+        'not null' => FALSE,
+      ),
+      'supplied_to_address_county' => array(
+        'description' => 'address county',
+        'type' => 'text',
+        'not null' => FALSE,
+      ),
+      'supplied_to_address_postcode' => array(
+        'description' => 'address postcode',
+        'type' => 'text',
+        'not null' => FALSE,
+      ),
+      'supplied_price' => array(
+        'description' => 'price supplied',
+        'type' => 'float',
+        'not null' => FALSE,
+      ),
+      'date' => array(
+        'description' => 'Supplied date, unix timestemap',
+        'type' => 'int',
+        'not null' => TRUE, //required
+      ),
+      'timestamp' => array(
+        'description' => 'Input timestamp',
+        'type' => 'int',
+        'not null' => TRUE, //required
+      ),
+    ),
+    'primary key' => array('id'),
+   );
+   return $schema;
+}
+
+/**
+ * Implements hook_enable()
+ */
+function rfds_enable() {
+  return NULL; //for the moment
+}
+
+/**
+ * Implements hook_disable()
+ */
+function rfds_disable() {
+  return NULL; //for the moment
+}

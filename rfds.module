@@ -1,0 +1,1434 @@
+<?php
+
+/**
+ * @file
+ * This file contains the custom rfds module functions
+ */
+
+/**
+ * Implements hook_menu
+ */
+function rfds_menu() {
+  $items = array();
+  
+  //@TODO: The permissions need to only allow subscribers. 
+  //Subscriber-specific permission logic needs to be applied to each page/form too. 
+  
+  $items['rfd/stock'] = array(
+    'title' => 'Stock overview',
+    'page callback' => array('rfds_stock_overview_page'),
+    'access arguments' => array('user_is_logged_in'), //will be specific later
+  );
+  
+  $items['rfd/stock/firearms'] = array(
+    'title' => 'Firearms stock',
+    'page callback' => array('rfds_firearms_stock_page'),
+    'access arguments' => array('user_is_logged_in'), //will be specific later
+  );
+  
+  $items['rfd/stock/firearms/printstock'] = array(
+    'title' => 'Current stock list (firearms)',
+    'page callback' => array('rfds_firearms_stock_printstock_page'),
+    'access arguments' => array('user_is_logged_in'), //will be specific later
+    'type' => MENU_CALLBACK,
+  );
+  
+  $items['rfd/stock/firearms/%'] = array(
+    'title' => 'Full details',
+    'page callback' => array('rfds_firearm_details_page'),
+    'page arguments' => array(3),
+    'access arguments' => array('user_is_logged_in'), //will be specific later. 
+  );
+  
+  $items['rfd/stock/ammo'] = array(
+    'title' => 'Ammunition stock',
+    'page callback' => array('rfds_ammo_stock_page'),
+    'access arguments' => array('user_is_logged_in'), //will be specific later
+  );
+  
+  $items['rfd/stock/ammo/%'] = array(
+    'title' => 'Full details',
+    'page callback' => array('rfds_ammo_details_page'),
+    'page arguments' => array(3),
+    'access arguments' => array('user_is_logged_in'),
+  );
+  
+  $items['rfd/sales/firearm/%'] = array(
+    'title' => 'Firearm sale record',
+    'page callback' => array('rfds_firearms_sale_page'),
+    'page arguments' => array(3),
+    'access callback' => array('user_is_logged_in'), //will be specific later
+  );
+  
+  $items['rfd/sales/firearm/%/unloan'] = array(
+    'title' => 'Unloan a firearm: return to stock',
+    'page callback' => array('rfds_firearms_unloan'),
+    'page arguments' => array(3),
+    'access callback' => array('user_is_logged_in'), //will be specific later
+  );
+  
+  $items['rfd/sales/ammo/%'] = array(
+    'title' => 'Ammunition sale record',
+    'page callback' => array('rfds_ammo_sale_page'),
+    'page arguments' => array(3),
+    'access callback' => array('user_is_logged_in'), //will be specific later
+  );
+  
+  $items['rfd/loan/%'] = array(
+    'title' => 'Firearm loan record',
+    'page callback' => array('rfds_firearms_loan_page'),
+    'page arguments' => array(2),
+    'access callback' => array('user_is_logged_in'), //will be specific later
+  );
+  
+  return $items;
+}
+
+/**
+ * Return a loaned firearm to stock
+ * Simple change of status ('stock') and movement recording
+ */
+function rfds_firearms_unloan($fid) {
+  //Update status
+  db_update('rfds_firearms')
+  ->fields(array(
+    'status' => 'in_stock',
+    'stock_location' => NULL,
+  ))
+  ->condition('id',$fid,'=')
+  ->execute();
+  
+  global $user;
+  //Add a movement
+  $movement = db_insert('rfds_firearm_movements')
+                ->fields(array(
+                  'recorded_by' => $user->uid,
+                  'movement_type' => 'return_to_stock_from_loan',
+                  'firearm' => $fid,
+                  'police_notification' => 0,
+                  'date' => time(),
+                  'comments' => 'Return to stock from loan',
+                  'timestamp' => time(),
+                  //other fields will be NULL
+                ))
+                ->execute();
+  if ($movement) {
+    drupal_set_message("Firearm returned to stock");
+    drupal_goto("rfd/stock/firearms");
+  }
+}
+
+/**
+ * Mail function
+ * Implements hook_mail()
+ */
+function rfds_mail($key, &$message, $params) {
+    switch ($key) {
+        case 'police':
+            if (isset($params['subject'])) {
+                $message['subject'] = $params['subject'];
+            }
+            if (isset($params['body'])) {
+                $message['body'][] = $params['body'];
+            }
+            if (isset($params['headers']) && is_array($params['headers'])) {
+                $message['headers'] += $params['headers'];
+            }
+    }
+}
+
+/**
+ * Returns the full details for a firearm.
+ */
+function rfds_firearm_details_page($fid) {
+  $firearm = db_select('rfds_firearms','f')
+              ->fields('f',array())
+              ->condition('id',$fid,'=')
+              ->execute()->fetchObject();
+  global $user;
+  $firearmId = $firearm->id;
+  $valid_from = date('d-m-Y', $firearm->supplied_by_certificate_valid_from);
+  $valid_to = date('d-m-Y', $firearm->supplied_by_certificate_valid_to);
+  $output = "
+    <table><tr><td>Firearm ID</td><td>$firearmId</td></tr>
+                  <tr><td>Type</td><td>$firearm->type</td></tr>
+                  <tr><td>Serial number</td><td>$firearm->serial_number</td></tr>
+                  <tr><td>Description</td><td>$firearm->description</td></tr>
+                  <tr><td>Supplied by</td><td>$firearm->supplied_by <br>($firearm->supplied_by_address_1, $firearm->supplied_by_address_2, $firearm->supplied_by_address_town, $firearm->supplied_by_address_county, $firearm->supplied_by_address_postcode)</td></tr>
+                  <tr><td>Supplied by (certificate)</td><td>$firearm->supplied_by_certificate [$valid_from - $valid_to]</td></tr>
+                  <tr><td>Date supplied</td><td>" . date('d-M-Y',$firearm->date_supplied) . "</td></tr>
+                  <tr><td>Stock location</td><td>$firearm->stock_location</td></tr></table>
+  ";
+  if ($firearm->status == "on_loan") {
+    $movement = db_select('rfds_firearm_movements','m1')
+                  ->fields('m1',array())
+                  ->condition('firearm',$fid,'=')
+                  ->condition('movement_type','loan','=')
+                  ->execute()->fetchObject();
+    $police = NULL;
+    if($movement->police_notification == 0) {
+      $police = "No";
+    } else {
+      $police = "Yes";
+    }
+    $output .= "<h4>This firearm is currently on loan</h4>
+      <table><tr><td>On loan to</td><td>$movement->supplied_to</td></tr>
+      <tr><td>Certificate</td><td>$movement->supplied_to_certificate</td></tr>
+      <tr><td>Date loaned</td><td>".date('d-m-Y',$movement->date) . "</td></tr>
+      <tr><td>Were the police notified?</td><td>$police $movement->police_notification_email_address</td></tr></table>
+    ";
+  }
+  if ($firearm->status == "sold") {
+    $movementSold = db_select('rfds_firearm_movements','m2')
+                  ->fields('m2',array())
+                  ->condition('firearm',$fid,'=')
+                  ->condition('movement_type','sale','=')
+                  ->execute()->fetchObject();
+    $police = NULL;
+    if($movementSold->police_notification == 0) {
+      $police = "No";
+    } else {
+      $police = "Yes";
+    }
+    $output .= "<h4>This firearm has been sold.</h4>
+      <table><tr><td>Sold to</td><td>$movementSold->supplied_to</td></tr>
+      <tr><td>Certificate</td><td>$movementSold->supplied_to_certificate</td></tr>
+      <tr><td>Date sold</td><td>".date('d-m-Y',$movementSold->date) . "</td></tr>
+      <tr><td>Were the police notified?</td><td>$police $movementSold->police_notification_email_address</td></tr></table>
+    ";
+  }
+  return $output;
+}
+
+/**
+ * ammo details page
+ */
+function rfds_ammo_details_page($aid) {
+  $ammo = db_select('rfds_ammo', 'a')
+            ->fields('a',array())
+            ->condition('id',$aid,'=')
+            ->execute()->fetchObject();
+  $recordedUser = user_load($ammo->recorded_by);
+  $date = date('d-m-Y',$ammo->timestamp) . " at " . date('H:i',$ammo->timestamp);
+  $ammoTypeInfo = db_select('rfds_ammo_types','ta')
+                    ->fields('ta',array())
+                    ->condition('id',$aid,'=')
+                    ->execute()->fetchAssoc();
+  $ammoType = $ammoTypeInfo['manufacturer'] . " " . $ammoTypeInfo['product'];
+  $output = "
+    <table><tr><td>Ammo ID</td><td>A$aid</td></tr>
+          <tr><td>Type</td><td>$ammoType</td></tr>
+          <tr><td>Batch</td><td>$ammo->batch</td></tr>
+          <tr><td>Quantity in stock</td><td>$ammo->quantity</td></tr>
+          <tr><td colspan=2>Added to the database by $recordedUser->name on $date</td></tr></table>
+          <h4>Sales of this ammo</h4>
+  ";
+  $salesHeader = array(
+    array('data' => 'Stock ID', 'field' => 'id'),
+    array('data' => 'Date of sale', 'field' => 'date', 'sort' => 'DESC'),
+    array('data' => 'Type', 'field' => 'type'),
+    array('data' => 'Batch', 'field' => 'batch'),
+    array('data' => 'Quantity sold', 'field' => 'num_rounds'),
+    array('data' => 'Sold to', 'field' => 'supplied_to'),
+    array('data' => 'Price', 'field' => 'supplied_price'),
+    array('data' => 'Sold by', 'field' => 'recorded_by'),
+  );
+  $salesRows = array();
+  $sales = db_select('rfds_ammo_movements','m')
+            ->fields('m',array())
+            ->condition('ammo',$aid,'=')
+            ->extend('PagerDefault')->limit(10)
+            ->extend('TableSort')->orderByHeader($salesHeader)
+            ->execute();
+  foreach ($sales as $sale) {
+    $ammoInfo = db_select('rfds_ammo','t')
+                ->fields('t',array())
+                ->condition('id',$sale->ammo,'=')
+                ->execute()->fetchObject();
+    $ammoTypeInfo = db_select('rfds_ammo_types','ta')
+                    ->fields('ta',array())
+                    ->condition('id',$sale->ammo,'=')
+                    ->execute()->fetchAssoc();
+    $ammoType = $ammoTypeInfo['manufacturer'] . " " . $ammoTypeInfo['product'];
+    $validFrom = date('d-m-Y',$sale->supplied_to_certificate_valid_from);
+    $validTo = date('d-m-Y', $sale->supplied_to_certificate_valid_to);
+    $recorder = user_load($sale->recorded_by);
+    $salesRows[] = array(
+      array('data' => "A" . $sale->ammo),
+      array('data' => date('d-m-Y',$sale->date)),
+      array('data' => $ammoType),
+      array('data' => $ammoInfo->batch),
+      array('data' => $sale->num_rounds),
+      array('data' => "$sale->supplied_to <br>$sale->supplied_to_certificate [$validFrom - $validTo]<br>
+                      $sale->supplied_to_address_1, $sale->supplied_to_address_2, $sale->supplied_to_address_town, $sale->supplied_to_address_county, $sale->supplied_to_address_postcode"),
+      array('data' => "£".$sale->supplied_price),
+      array('data' => $recorder->name),
+    );
+  }
+  $output .= theme('table', array('header' => $salesHeader, 'rows' => $salesRows, 'empty' => 'There are no ammunition sale records yet.'));
+  $output .= theme('pager', array('tags' => array(), 'element' => 0));
+  
+  return $output;
+}
+
+/**
+ * Page that renders the firearms sale form for a particular firearm
+ */
+function rfds_firearms_sale_page($fid) {
+  $form_state = array(
+    'title' => 'Firearm sale record',
+    'ajax' => TRUE,
+    'args' => array(
+      'fid' => $fid,
+    ),
+  );
+  
+  /**
+   * Check that this firearm is avaialble for sale
+   */
+  $status = db_select('rfds_firearms','f')
+            ->fields('f',array('status'))
+            ->condition('id',$fid,'=')
+            ->execute()->fetchField();
+  if ($status == "sold") {
+    drupal_set_message("This firearm is not for sale","error");
+    drupal_goto("rfd/stock/firearms");
+  } else {
+    $firearms_sale_form = drupal_build_form('rfds_sell_firearm_form',$form_state);
+    return drupal_render($firearms_sale_form);
+  }
+  
+  
+}
+
+function rfds_firearms_loan_page($fid) {
+  $form_state = array(
+    'title' => 'Firearm loan record',
+    'ajax' => TRUE,
+    'args' => array(
+      'fid' => $fid,
+    ),
+  );
+  
+  /**
+   * Check that this firearm is avaialble for sale
+   */
+  $status = db_select('rfds_firearms','f')
+            ->fields('f',array('status'))
+            ->condition('id',$fid,'=')
+            ->execute()->fetchField();
+  if ($status == "on_loan") {
+    drupal_set_message("This firearm is already on loan!","error");
+    drupal_goto("rfd/stock/firearms");
+  } else {
+    $firearms_loan_form = drupal_build_form('rfds_loan_firearm_form',$form_state);
+    return drupal_render($firearms_loan_form);
+  }
+}
+
+function rfds_ammo_sale_page($aid) {
+  $form_state = array(
+    'title' => 'Ammo sale record',
+    'ajax' => TRUE,
+    'args' => array('aid' => $aid),
+  );
+  
+  $ammo_sale_form = drupal_build_form('rfds_sell_ammo_form',$form_state);
+  return drupal_render($ammo_sale_form);
+}
+
+/**
+ * Form to add a firearm to the database. 
+ * Implements hook_form();
+ */
+function rfds_add_firearm_form($form, &$form_state) {
+  $form = array();
+  
+  $form['add'] = array(
+    '#type' => 'fieldset',
+    '#title' => 'Add a firearm to the stock list',
+    '#collapsible' => TRUE,
+    '#collapsed' => TRUE,
+  );
+  
+  $form['add']['type'] = array(
+    '#type' => 'textfield',
+    '#title' => 'Firearm type',
+    '#description' => 'e.g. shotgun, .22 rifle',
+    '#required' => TRUE,
+  );
+  
+  $form['add']['serial_number'] = array(
+    '#type' => 'textfield',
+    '#title' => 'Serial number',
+    '#required' => TRUE,
+  );
+  
+  $form['add']['description'] = array(
+    '#type' => 'textfield',
+    '#title' => 'Description',
+    '#required' => FALSE,
+  );
+  
+  $form['add']['supplied_by'] = array(
+    '#type' => 'textfield',
+    '#title' => 'Supplied by',
+    '#description' => 'Full name',
+    '#required' => TRUE,
+  );
+  
+  $form['add']['supplied_by_certificate'] = array(
+    '#type' => 'textfield',
+    '#title' => 'Supplier certificate number',
+    '#required' => TRUE,
+  );
+  
+  $form['add']['supplied_by_certificate_valid_from'] = array(
+    '#type' => 'date_popup',
+    '#date_format' => 'Y-m-d',
+    '#date_year_range' => '-10:+20',
+    '#default_value' => date('Y-m-d'),
+    '#date_label_position' => 'within',
+    '#title' => 'Supplier certificate valid from',
+    '#required' => TRUE,
+  );
+  $form['add']['supplied_by_certificate_valid_to'] = array(
+    '#type' => 'date_popup',
+    '#date_format' => 'Y-m-d',
+    '#date_year_range' => '-10:+10',
+    '#default_value' => date('Y-m-d'),
+    '#date_label_position' => 'within',
+    '#title' => 'Supplier certificate valid to',
+    '#required' => TRUE,
+  );
+  
+  $form['add']['supplied_by_address_1'] = array(
+    '#type' => 'textfield',
+    '#title' => 'Supplier address line 1',
+  );
+  
+  $form['add']['supplied_by_address_2'] = array(
+    '#type' => 'textfield',
+    '#title' => 'Supplier address 2',
+  );
+  
+  $form['add']['supplied_by_address_town'] = array(
+    '#type' => 'textfield',
+    '#title' => 'Supplier town/city'
+  );
+  
+  $form['add']['supplied_by_address_county'] = array(
+    '#type' => 'textfield',
+    '#title' => 'Supplier county'
+  );
+  
+  $form['add']['supplied_by_address_postcode'] = array(
+    '#type' => 'textfield',
+    '#title' => 'Supplier postcode',
+  );
+  
+  $form['add']['supplied_price'] = array(
+    '#type' => 'textfield',
+    '#title' => 'Price',
+  );
+  
+  $form['add']['date_supplied'] = array(
+    '#type' => 'date_popup',
+    '#date_format' => 'Y-m-d',
+    '#default_value' => date('Y-m-d'),
+    '#date_label_position' => 'within',
+    '#title' => 'Date acquired',
+    '#required' => TRUE,
+  );
+  
+  $form['add']['stock_location'] = array(
+    '#type' => 'textfield',
+    '#title' => 'Stock location',
+    '#description' => 'i.e. if you store firearms in multiple locations',
+  );
+  
+  $form['add']['submit'] = array(
+    '#type' => 'submit',
+    '#value' => 'Submit',
+  );
+  
+  return $form;
+}
+
+/**
+ * Implements hook_form_submit();
+ */
+function rfds_add_firearm_form_submit($form, &$form_state) {
+  global $user;
+  $fid = db_insert('rfds_firearms')
+          ->fields(array(
+            'recorded_by' => $user->uid,
+            'type' => $form_state['values']['type'],
+            'serial_number' => $form_state['values']['serial_number'],
+            'description' => $form_state['values']['description'],
+            'supplied_by' => $form_state['values']['supplied_by'],
+            'supplied_by_certificate' => $form_state['values']['supplied_by_certificate'],
+            'supplied_by_certificate_valid_from' => strtotime($form_state['values']['supplied_by_certificate_valid_from']),
+            'supplied_by_certificate_valid_to' => strtotime($form_state['values']['supplied_by_certificate_valid_from']),
+            'date_supplied' => strtotime($form_state['values']['date_supplied']),
+            'supplied_by_address_1' => $form_state['values']['supplied_by_address_1'],
+            'supplied_by_address_2' => $form_state['values']['supplied_by_address_2'],
+            'supplied_by_address_town' => $form_state['values']['supplied_by_address_town'],
+            'supplied_by_address_county' => $form_state['values']['supplied_by_address_county'],
+            'supplied_by_address_postcode' => $form_state['values']['supplied_by_address_postcode'],
+            'supplied_price' => $form_state['values']['supplied_price'],
+            'stock_location' => $form_state['values']['stock_location'],
+            'status' => 'in_stock',
+            'timestamp' => time(),
+          ))
+          ->execute();
+  if ($fid) {
+    $firearm = $fid;
+    drupal_set_message("Firearm $firearm has been added to your stock list.");
+    drupal_goto('rfd/stock/firearms');
+  }
+}
+
+/**
+ * Form to sell a firearm
+ * Implements hook_form();
+ */
+function rfds_sell_firearm_form($form, &$form_state) {
+  $form = array();
+  
+  $firearm = db_select('rfds_firearms','f')
+              ->fields('f',array())
+              ->condition('id',$form_state['args']['fid'],'=')
+              ->execute()->fetchObject();
+  $firearmId = $firearm->id;
+  $markup = "This form is to record the same of the following firearm:<br>
+            <table><tr><td>Firearm ID</td><td>$firearmId</td></tr>
+                  <tr><td>Type</td><td>$firearm->type</td></tr>
+                  <tr><td>Serial number</td><td>$firearm->serial_number</td></tr>
+                  <tr><td>Description</td><td>$firearm->description</td></tr>
+                  <tr><td>Supplied by</td><td>$firearm->supplied_by</td></tr>
+                  <tr><td>Supplied by (certificate)</td><td>$firearm->supplied_by_certificate</td></tr>
+                  <tr><td>Date supplied</td><td>" . date('d-M-Y',$firearm->date_supplied) . "</td></tr>
+                  <tr><td>Stock location</td><td>$firearm->stock_location</td></tr></table>
+            ";
+  
+  $form['markup'] = array(
+    '#markup' => $markup,
+  );
+  
+  $form['police_notification'] = array(
+    '#type' => 'radios',
+    '#title' => 'Should an email be automatically sent to the police to notify them of the sale?',
+    '#options' => array(
+      0 => 'No',
+      1 => 'Yes',
+    ),
+    '#required' => TRUE,
+  );
+  
+  $form['police_notification_email_address'] = array(
+    '#type' => 'textfield',
+    '#title' => 'Police email address',
+    '#description' => 'Please make sure this is correct',
+    '#states' => array(
+      'visible' => array(
+        ':input[name="police_notification"]' => array('value' => 1),
+      ),
+    ),
+  );
+  
+  $form['supplied_to'] = array(
+    '#type' => 'textfield',
+    '#title' => 'Who was the firearm supplied to?',
+    '#description' => 'Full name',
+    '#required' => TRUE,
+  );
+  
+  $form['supplied_to_certificate'] = array(
+    '#type' => 'textfield',
+    '#title' => 'Certificate number',
+    '#required' => TRUE,
+  );
+  
+  $form['supplied_to_certificate_valid_from'] = array(
+    '#type' => 'date_popup',
+    '#date_format' => 'Y-m-d',
+    '#date_year_range' => '-10:+10',
+    '#default_value' => date('Y-m-d'),
+    '#date_label_position' => 'within',
+    '#title' => 'Certificate valid from',
+    '#required' => TRUE,
+  );
+  
+  $form['supplied_to_certificate_valid_to'] = array(
+    '#type' => 'date_popup',
+    '#date_format' => 'Y-m-d',
+    '#date_year_range' => '-10:+10',
+    '#default_value' => date('Y-m-d'),
+    '#date_label_position' => 'within',
+    '#title' => 'Certificate valid to',
+    '#required' => TRUE,
+  );
+  
+  $form['supplied_to_address_1'] = array(
+    '#type' => 'textfield',
+    '#title' => 'Address line 1',
+    '#required' => TRUE,
+  );
+  
+  $form['supplied_to_address_2'] = array(
+    '#type' => 'textfield',
+    '#title' => 'Address line 2',
+  );
+  
+  $form['supplied_to_address_town'] = array(
+    '#type' => 'textfield',
+    '#title' => 'Town/City',
+    '#required' => True,
+  );
+  
+  $form['supplied_to_address_county'] = array(
+    '#type' => 'textfield',
+    '#title' => 'County',
+    '#required' => True,
+  );
+  
+  $form['supplied_to_address_postcode'] = array(
+    '#type' => 'textfield',
+    '#title' => 'Postcode',
+    '#required' => True,
+  );
+  
+  $form['supplied_price'] = array(
+    '#type' => 'textfield',
+    '#title' => 'Sold price',
+  );
+  
+  $form['date'] = array(
+    '#type' => 'date_popup',
+    '#title' => 'Date of transfer',
+    '#date_format' => 'Y-m-d',
+    '#default_value' => date('Y-m-d'),
+    '#date_label_position' => 'within',
+    '#required' => TRUE,
+  );
+  
+  $form['comments'] = array(
+    '#type' => 'textarea',
+    '#title' => 'Comments',
+  );
+  
+  $form['submit'] = array(
+    '#type' => 'submit',
+    '#value' => 'Submit',
+  );
+  
+  $form['cancel'] = array(
+    '#type' => 'markup',
+    '#markup' => l('Cancel',"rfd/stock/firearms"),
+  );
+  
+  return $form;
+}
+
+/**
+ * Implements hook_form_submit()
+ */
+function rfds_sell_firearm_form_submit($form, &$form_state) {
+  global $user;
+  
+  /**
+   * There needs to be a mail function here too.
+   */
+  $mid = db_insert('rfds_firearm_movements')
+          ->fields(array(
+            'recorded_by' => $user->uid,
+            'movement_type' => 'sale',
+            'firearm' => $form_state['args']['fid'],
+            'police_notification' => $form_state['values']['police_notification'],
+            'police_notification_email_address' => $form_state['values']['police_notification_email_address'],
+            'supplied_to' => $form_state['values']['supplied_to'],
+            'supplied_to_certificate' => $form_state['values']['supplied_to_certificate'],
+            'supplied_to_certificate_valid_from' => strtotime($form_state['values']['supplied_to_certificate_valid_from']),
+            'supplied_to_certificate_valid_to' => strtotime($form_state['values']['supplied_to_certificate_valid_to']),
+            'supplied_to_address_1' => $form_state['values']['supplied_to_address_1'],
+            'supplied_to_address_2' => $form_state['values']['supplied_to_address_2'],
+            'supplied_to_address_town' => $form_state['values']['supplied_to_address_town'],
+            'supplied_to_address_county' => $form_state['values']['supplied_to_address_county'],
+            'supplied_to_address_postcode' => $form_state['values']['supplied_to_address_postcode'],
+            'supplied_price' => $form_state['values']['supplied_price'],
+            'date' => strtotime($form_state['values']['date']),
+            'comments' => $form_state['values']['comments'],
+            'timestamp' => time(),
+          ))
+          ->execute();
+   $mid_status = db_update('rfds_firearms')
+                  ->fields(array(
+                    'status' => 'sold',
+                    'stock_location' => 'SOLD',
+                  ))
+                  ->condition('id',$form_state['args']['fid'],'=')
+                  ->execute();
+   //Send email:
+   $fid = $form_state['args']['fid'];
+   $firearm = db_select('rfds_firearms','f')
+              ->fields('f',array())
+              ->condition('id',$fid,'=')
+              ->execute()->fetchObject();
+   $sold = db_select('rfds_firearm_movements','m')
+            ->fields('m',array())
+            ->condition('id',$mid,'=')
+            ->execute()->fetchObject();
+   $supplied_by = "\n\t$firearm->supplied_by\n\t$firearm->supplied_by_address_1\n\t$firearm->supplied_by_address_2\n\t$firearm->supplied_by_address_town\n\t$firearm->supplied_by_address_county\n\t$firearm->supplied_by_address_postcode\n\tCertificate: $firearm->supplied_by_certificate (Valid from: " . date('d-m-Y', $firearm->supplied_by_certificate_valid_from) . " Valid to: " . date('d-m-Y', $firearm->supplied_by_certificate_valid_to) . ")";
+   $sold_to = "\n\t$sold->supplied_to\n\t$sold->supplied_to_address_1\n\t$sold->supplied_to_address_2\n\t$sold->supplied_to_address_town\n\t$sold->supplied_to_address_county\n\t$sold->supplied_to_address_postcode\n\tCertificate: $sold->supplied_to_certificate (Valid from: " . date('d-m-Y', $sold->supplied_to_certificate_valid_from) . " Valid to: " . date('d-m-Y', $sold->supplied_to_certificate_valid_to) . ")";
+   if ($form_state['values']['police_notification'] == 1) {
+     $police_email = $form_state['values']['police_notification_email_address'];
+     $from = $user->mail;
+     $to = "$police_email, $from";
+     $subject = "Firearm sale notification";
+     
+     $body = "To whom it may concern,\n\nWe would like to notify you of the sale of a firearm by ERC Trading Ltd. \n\nStock number: $fid\nFirearm description: Serial $firearm->serial_number, $firearm->type, $firearm->description\nDate supplied to ERC Trading: " . date('d-m-Y',$firearm->date_supplied) . "\nSupplied to ERC Trading by: $supplied_by\nDate sold: " . date('d-m-Y',$sold->date) . "\nSold to: $sold_to\nComments: $sold->comments\n\nMany thanks,\nERC Trading Ltd\n\n---\nThis is an automated email sent by the online RFD package supplied by foresightshooting.co.uk";
+     
+     $send = drupal_mail('rfds','police', $to, user_preferred_language($user), array('body' => $body, 'subject' => $subject, 'headers' => array()), $from, TRUE);
+   }
+   if($send) {
+     drupal_set_message("Firearm sale has been recorded and a notification email has been sent to $police_email. A copy has also been sent to $user->mail.");
+     drupal_goto('rfd/stock/firearms');
+   }
+}
+
+function rfds_loan_firearm_form($form, &$form_state) {
+  $form = array();
+  
+  $firearm = db_select('rfds_firearms','f')
+              ->fields('f',array())
+              ->condition('id',$form_state['args']['fid'],'=')
+              ->execute()->fetchObject();
+  $firearmId = $firearm->id;
+  $markup = "This form is to record the loan of the following firearm:<br>
+            <table><tr><td>Firearm ID</td><td>$firearmId</td></tr>
+                  <tr><td>Type</td><td>$firearm->type</td></tr>
+                  <tr><td>Serial number</td><td>$firearm->serial_number</td></tr>
+                  <tr><td>Description</td><td>$firearm->description</td></tr>
+                  <tr><td>Supplied by</td><td>$firearm->supplied_by</td></tr>
+                  <tr><td>Supplied by (certificate)</td><td>$firearm->supplied_by_certificate</td></tr>
+                  <tr><td>Date supplied</td><td>" . date('d-M-Y',$firearm->date_supplied) . "</td></tr>
+                  <tr><td>Stock location</td><td>$firearm->stock_location</td></tr></table>
+            ";
+  
+  $form['markup'] = array(
+    '#markup' => $markup,
+  );
+  
+  $form['police_notification'] = array(
+    '#type' => 'radios',
+    '#title' => 'Should an email be automatically sent to the police to notify them of the loan?',
+    '#options' => array(
+      0 => 'No',
+      1 => 'Yes',
+    ),
+    '#required' => TRUE,
+  );
+  
+  $form['police_notification_email_address'] = array(
+    '#type' => 'textfield',
+    '#title' => 'Police email address',
+    '#description' => 'Please make sure this is correct',
+    '#states' => array(
+      'visible' => array(
+        ':input[name="police_notification"]' => array('value' => 1),
+      ),
+    ),
+  );
+  
+  $form['supplied_to'] = array(
+    '#type' => 'textfield',
+    '#title' => 'Who was the firearm loaned to?',
+    '#description' => 'Full name',
+    '#required' => TRUE,
+  );
+  
+  $form['supplied_to_certificate'] = array(
+    '#type' => 'textfield',
+    '#title' => 'Certificate number',
+    '#required' => TRUE,
+  );
+  
+  $form['supplied_to_certificate_valid_from'] = array(
+    '#type' => 'date_popup',
+    '#date_format' => 'Y-m-d',
+    '#date_year_range' => '-10:+10',
+    '#default_value' => date('Y-m-d'),
+    '#date_label_position' => 'within',
+    '#title' => 'Certificate valid from',
+    '#required' => TRUE,
+  );
+  
+  $form['supplied_to_certificate_valid_to'] = array(
+    '#type' => 'date_popup',
+    '#date_format' => 'Y-m-d',
+    '#date_year_range' => '-10:+10',
+    '#default_value' => date('Y-m-d'),
+    '#date_label_position' => 'within',
+    '#title' => 'Certificate valid to',
+    '#required' => TRUE,
+  );
+  
+  $form['supplied_to_address_1'] = array(
+    '#type' => 'textfield',
+    '#title' => 'Address line 1',
+    '#required' => TRUE,
+  );
+  
+  $form['supplied_to_address_2'] = array(
+    '#type' => 'textfield',
+    '#title' => 'Address line 2',
+  );
+  
+  $form['supplied_to_address_town'] = array(
+    '#type' => 'textfield',
+    '#title' => 'Town/City',
+    '#required' => True,
+  );
+  
+  $form['supplied_to_address_county'] = array(
+    '#type' => 'textfield',
+    '#title' => 'County',
+    '#required' => True,
+  );
+  
+  $form['supplied_to_address_postcode'] = array(
+    '#type' => 'textfield',
+    '#title' => 'Postcode',
+    '#required' => True,
+  );
+  
+  $form['supplied_price'] = array(
+    '#type' => 'textfield',
+    '#title' => 'Loan price',
+    '#description' => 'If free, put 0'
+  );
+  
+  $form['date'] = array(
+    '#type' => 'date_popup',
+    '#title' => 'Date of loan',
+    '#date_format' => 'Y-m-d',
+    '#default_value' => date('Y-m-d'),
+    '#date_label_position' => 'within',
+    '#required' => TRUE,
+  );
+  
+  $form['comments'] = array(
+    '#type' => 'textarea',
+    '#title' => 'Comments',
+  );
+  
+  $form['submit'] = array(
+    '#type' => 'submit',
+    '#value' => 'Submit',
+  );
+  
+  $form['cancel'] = array(
+    '#type' => 'markup',
+    '#markup' => l('Cancel',"rfd/stock/firearms"),
+  );
+  
+  return $form;
+}
+
+function rfds_loan_firearm_form_submit($form, &$form_state) {
+  global $user;
+  
+  /**
+   * There needs to be a mail function here too.
+   */
+  $mid = db_insert('rfds_firearm_movements')
+          ->fields(array(
+            'recorded_by' => $user->uid,
+            'movement_type' => 'loan',
+            'firearm' => $form_state['args']['fid'],
+            'police_notification' => $form_state['values']['police_notification'],
+            'police_notification_email_address' => $form_state['values']['police_notification_email_address'],
+            'supplied_to' => $form_state['values']['supplied_to'],
+            'supplied_to_certificate' => $form_state['values']['supplied_to_certificate'],
+            'supplied_to_certificate_valid_from' => strtotime($form_state['values']['supplied_to_certificate_valid_from']),
+            'supplied_to_certificate_valid_to' => strtotime($form_state['values']['supplied_to_certificate_valid_to']),
+            'supplied_to_address_1' => $form_state['values']['supplied_to_address_1'],
+            'supplied_to_address_2' => $form_state['values']['supplied_to_address_2'],
+            'supplied_to_address_town' => $form_state['values']['supplied_to_address_town'],
+            'supplied_to_address_county' => $form_state['values']['supplied_to_address_county'],
+            'supplied_to_address_postcode' => $form_state['values']['supplied_to_address_postcode'],
+            'supplied_price' => $form_state['values']['supplied_price'],
+            'date' => strtotime($form_state['values']['date']),
+            'comments' => $form_state['values']['comments'],
+            'timestamp' => time()
+          ))
+          ->execute();
+   $mid_status = db_update('rfds_firearms')
+                  ->fields(array(
+                    'status' => 'on_loan',
+                    'stock_location' => "On loan",
+                  ))
+                  ->condition('id',$form_state['args']['fid'],'=')
+                  ->execute();
+   //Send email:
+   $fid = $form_state['args']['fid'];
+   $firearm = db_select('rfds_firearms','f')
+              ->fields('f',array())
+              ->condition('id',$fid,'=')
+              ->execute()->fetchObject();
+   $sold = db_select('rfds_firearm_movements','m')
+            ->fields('m',array())
+            ->condition('id',$mid,'=')
+            ->execute()->fetchObject();
+   $supplied_by = "\n\t$firearm->supplied_by\n\t$firearm->supplied_by_address_1\n\t$firearm->supplied_by_address_2\n\t$firearm->supplied_by_address_town\n\t$firearm->supplied_by_address_county\n\t$firearm->supplied_by_address_postcode\n\tCertificate: $firearm->supplied_by_certificate (Valid from: " . date('d-m-Y', $firearm->supplied_by_certificate_valid_from) . " Valid to: " . date('d-m-Y', $firearm->supplied_by_certificate_valid_to) . ")";
+   $sold_to = "\n\t$sold->supplied_to\n\t$sold->supplied_to_address_1\n\t$sold->supplied_to_address_2\n\t$sold->supplied_to_address_town\n\t$sold->supplied_to_address_county\n\t$sold->supplied_to_address_postcode\n\tCertificate: $sold->supplied_to_certificate (Valid from: " . date('d-m-Y', $sold->supplied_to_certificate_valid_from) . " Valid to: " . date('d-m-Y', $sold->supplied_to_certificate_valid_to) . ")";
+   if ($form_state['values']['police_notification'] == 1) {
+     $police_email = $form_state['values']['police_notification_email_address'];
+     $from = $user->mail;
+     $to = "$police_email, $from";
+     $subject = "Firearm loan notification";
+     
+     $body = "To whom it may concern,\n\nWe would like to notify you of the loan of a firearm by ERC Trading Ltd. \n\nStock number: $fid\nFirearm description: Serial $firearm->serial_number, $firearm->type, $firearm->description\nDate supplied to ERC Trading: " . date('d-m-Y',$firearm->date_supplied) . "\nSupplied to ERC Trading by: $supplied_by\nDate lent: " . date('d-m-Y',$sold->date) . "\nLent to: $sold_to\nComments: $sold->comments\n\nMany thanks,\nERC Trading Ltd\n\n---\nThis is an automated email sent by the online RFD package supplied by foresightshooting.co.uk";
+     
+     $send = drupal_mail('rfds','police', $to, user_preferred_language($user), array('body' => $body, 'subject' => $subject, 'headers' => array()), $from, TRUE);
+   }
+   if($send) {
+     drupal_set_message("Firearm sale has been recorded and a notification email has been sent to $police_email. A copy has also been sent to $user->mail.");
+     drupal_goto('rfd/stock/firearms');
+   }
+}
+
+/**
+ * Form to add ammo
+ * Implements hook_form()
+ */
+function rfds_add_ammo_form($form, &$form_state) {
+  $form = array();
+  
+  global $user;
+  
+  $form['add'] = array(
+    '#type' => 'fieldset',
+    '#title' => 'Add ammunition to stock',
+    '#collapsible' => TRUE,
+    '#collapsed' => TRUE,
+  );
+  
+  $currentTypes = array();
+  
+  $current = db_select('rfds_ammo_types','r')
+              ->fields('r',array())
+              ->execute();
+  foreach ($current as $c) {
+   $currentTypes[$c->id] = $c->manufacturer . " " . $c->product; 
+  }
+  $currentTypes['new'] = "New...";
+  
+  $form['add']['type'] = array(
+    '#type' => 'select',
+    '#title' => 'Manufacturer and product',
+    '#options' => $currentTypes,
+  );
+  
+  $form['add']['new_manufacturer'] = array(
+    '#type' => 'textfield',
+    '#title' => 'Manufacturer',
+    '#states' => array(
+      'visible' => array(
+        ':input[name="type"]' => array('value' => 'new'),
+      ),
+    ),
+  );
+  
+  $form['add']['new_product'] = array(
+    '#type' => 'textfield',
+    '#title' => 'Product',
+    '#states' => array(
+      'visible' => array(
+        ':input[name="type"]' => array('value' => 'new'),
+      ),
+    ),
+  );
+  
+  $form['add']['batch'] = array(
+    '#type' => 'textfield',
+    '#title' => 'Batch',
+  );
+  
+  $form['add']['quantity'] = array(
+    '#type' => 'textfield',
+    '#title' => 'Quantity',
+  );
+  
+  $form['add']['cost'] = array(
+    '#type' => 'textfield',
+    '#title' => 'Price',
+  );
+  
+  $form['add']['submit'] = array(
+    '#type' => 'submit',
+    '#value' => 'Submit',
+  );
+  
+  return $form;
+}
+
+/**
+ * Implemets hook_form_submit()
+ */
+function rfds_add_ammo_form_submit($form, &$form_state) {
+  global $user;
+  
+  $type = NULL;
+  if ($form_state['values']['type'] == 'new') {
+    $type = db_insert('rfds_ammo_types')
+            ->fields(array(
+              'recorded_by' => $user->uid,
+              'manufacturer' => $form_state['values']['new_manufacturer'],
+              'product' => $form_state['values']['new_product'],
+              'timestamp' => time(),
+            ))
+            ->execute();
+    if ($type) {
+      drupal_set_message("New ammunition type added.");
+    }
+  }
+  
+  $aid = db_insert('rfds_ammo')
+          ->fields(array(
+            'recorded_by' => $user->uid,
+            'type' => $type,
+            'batch' => $form_state['values']['batch'],
+            'quantity' => $form_state['values']['quantity'],
+            'cost' => $form_state['values']['cost'],
+            'timestamp' => time(),
+          ))
+          ->execute();
+  
+  if ($aid) {
+    drupal_set_message("Ammunition added to stock.");
+    drupal_goto('rfd/stock/ammo');
+  }
+}
+
+function rfds_sell_ammo_form($form, &$form_state) {
+  global $user;
+  
+  $aid = $form_state['args']['aid'];
+  
+  $ammo = db_select('rfds_ammo','a')
+            ->fields('a',array())
+            ->condition('id',$aid,'=')
+            ->execute()->fetchObject();
+  $ammoType = db_select('rfds_ammo_types','t')
+              ->fields('t',array())
+              ->condition('id',$ammo->type,'=')
+              ->execute()->fetchObject();
+  $markup = "This form is to record the sale of some of the following ammunition:<br>
+            <table><tr><td>Manufacturer</td><td>$ammoType->manufacturer</td></tr>
+                  <tr><td>Product</td><td>$ammoType->product</td></tr>
+                  <tr><td>Batch</td><td>$ammo->batch</td></tr>
+                  <tr><td>Amount currently in stock</td><td>$ammo->quantity</td></tr></table>
+            ";
+  
+  $form['markup'] = array(
+    '#markup' => $markup,
+  );
+  
+  $form['amount'] = array(
+    '#type' => 'textfield',
+    '#title' => 'Number of rounds',
+    '#required' => TRUE,
+  );
+  
+  $form['supplied_to'] = array(
+    '#type' => 'textfield',
+    '#title' => 'Supplied to',
+    '#description' => 'Full name',
+    '#required' => TRUE,
+  );
+  
+  $form['supplied_to_certificate'] = array(
+    '#type' => 'textfield',
+    '#title' => 'Certificate number',
+    '#required' => TRUE,
+  );
+  
+  $form['supplied_to_certificate_valid_from'] = array(
+    '#type' => 'date_popup',
+    '#date_format' => 'Y-m-d',
+    '#date_year_range' => '-10:+10',
+    '#default_value' => date('Y-m-d'),
+    '#date_label_position' => 'within',
+    '#title' => 'Certificate valid from',
+    '#required' => TRUE,
+  );
+  
+  $form['supplied_to_certificate_valid_to'] = array(
+    '#type' => 'date_popup',
+    '#date_format' => 'Y-m-d',
+    '#date_year_range' => '-10:+10',
+    '#default_value' => date('Y-m-d'),
+    '#date_label_position' => 'within',
+    '#title' => 'Certificate valid to',
+    '#required' => TRUE,
+  );
+  
+  $form['supplied_to_address_1'] = array(
+    '#type' => 'textfield',
+    '#title' => 'Address line 1',
+    '#required' => TRUE,
+  );
+  
+  $form['supplied_to_address_2'] = array(
+    '#type' => 'textfield',
+    '#title' => 'Address line 2',
+  );
+  
+  $form['supplied_to_address_town'] = array(
+    '#type' => 'textfield',
+    '#title' => 'Town/City',
+    '#required' => True,
+  );
+  
+  $form['supplied_to_address_county'] = array(
+    '#type' => 'textfield',
+    '#title' => 'County',
+    '#required' => True,
+  );
+  
+  $form['supplied_to_address_postcode'] = array(
+    '#type' => 'textfield',
+    '#title' => 'Postcode',
+    '#required' => True,
+  );
+  
+  $form['supplied_price'] = array(
+    '#type' => 'textfield',
+    '#title' => 'Sold price',
+  );
+  
+  $form['date'] = array(
+    '#type' => 'date_popup',
+    '#date_format' => 'Y-m-d',
+    '#default_value' => date('Y-m-d'),
+    '#date_label_position' => 'within',
+    '#title' => 'Sale date',
+    '#required' => TRUE,
+  );
+  
+  $form['submit'] = array(
+    '#type' => 'submit',
+    '#value' => 'Submit',
+  );
+  
+  return $form;
+}
+
+function rfds_sell_ammo_form_validate($form, &$form_state) {
+  $current_stock = db_select('rfds_ammo','a')
+                    ->fields('a',array('quantity'))
+                    ->condition('id',$form_state['args']['aid'],'=')
+                    ->execute()->fetchField();
+  $new_stock = $current_stock - $form_state['values']['amount'];
+  
+  if ($new_stock <= 0) {
+    form_set_error("","ERROR! You are trying to sell more of this ammunition than is currently in stock!");
+  } 
+}
+
+function rfds_sell_ammo_form_submit($form, &$form_state) {
+  //Submit to ammo movements and then knock off the amount from stock
+  global $user;
+  $movement = db_insert('rfds_ammo_movements')
+              ->fields(array(
+                'ammo' => $form_state['args']['aid'],
+                'num_rounds' => $form_state['values']['amount'],
+                'recorded_by' => $user->uid,
+                'supplied_to' => $form_state['values']['supplied_to'],
+                'supplied_to_certificate' => $form_state['values']['supplied_to_certificate'],
+                'supplied_to_certificate_valid_from' => strtotime($form_state['values']['supplied_to_certificate_valid_from']),
+                'supplied_to_certificate_valid_to' => strtotime($form_state['values']['supplied_to_certificate_valid_to']),
+                'supplied_to_address_1' => $form_state['values']['supplied_to_address_1'],
+                'supplied_to_address_2' => $form_state['values']['supplied_to_address_2'],
+                'supplied_to_address_town' => $form_state['values']['supplied_to_address_town'],
+                'supplied_to_address_county' => $form_state['values']['supplied_to_address_county'],
+                'supplied_to_address_postcode' => $form_state['values']['supplied_to_address_postcode'],
+                'supplied_price' => $form_state['values']['supplied_price'],
+                'date' => strtotime($form_state['values']['date']),
+                'timestamp' => time(),
+              ))
+              ->execute();
+   $current_stock = db_select('rfds_ammo','a')
+                    ->fields('a',array('quantity'))
+                    ->condition('id',$form_state['args']['aid'],'=')
+                    ->execute()->fetchField();
+   $new_stock = $current_stock - $form_state['values']['amount'];
+   
+   $update = db_update('rfds_ammo')
+              ->fields(array(
+                'quantity' => $new_stock,
+              ))
+              ->condition('id',$form_state['args']['aid'],'=')
+              ->execute();
+    if ($movement) {
+      drupal_set_message("Ammunition marked as sold. The quantity has been updated.");
+      drupal_goto('rfd/stock/ammo');
+    }
+}
+
+/**
+ * Page that links to the other stock pages. 
+ */
+function rfds_stock_overview_page() {
+  $output = l("Firearms stock<br>","rfd/stock/firearms", array('html' => TRUE));  
+  
+  $output .= l("Ammo stock", "rfd/stock/ammo", array('html' => TRUE));
+    
+  return $output;
+}
+
+/**
+ * Printer friendly firearm stock page
+ */
+function rfds_firearms_stock_printstock_page() {
+  global $user;
+  
+  $output = "";
+  $firearmsHeader = array(
+    array('data' => 'Stock ID', 'field' => 'id', 'sort' => 'ASC'),
+    array('data' => 'Type', 'field' => 'type'),
+    array('data' => 'Serial number', 'field' => 'serial_number'),
+    array('data' => 'Description', 'field' => 'description'),
+    array('data' => 'Stock location', 'field' => 'stock_location'),
+    array('data' => 'Status', 'field' => 'status'),
+  );
+  $firearmsRows = array();
+  $currentFirearms = db_select('rfds_firearms','f')
+                        ->fields('f',array())
+                        ->condition('status','sold','!=')
+                        ->extend('TableSort')->orderByHeader($firearmsHeader)
+                        ->execute();
+  foreach ($currentFirearms as $firearm) {
+     $firearmsRows[] = array(
+      array('data' => $firearm->id),
+      array('data' => $firearm->type),
+      array('data' => $firearm->serial_number),
+      array('data' => $firearm->description),
+      array('data' => $firearm->stock_location),
+      array('data' => $firearm->status)
+    );
+  }
+  $output .= theme('table', array('header' => $firearmsHeader, 'rows' => $firearmsRows, 'empty' => 'There are no firearms currently in the database'));
+
+  return $output;
+  
+}
+
+/**
+ * Page that shows the current stock of firearms
+ */
+function rfds_firearms_stock_page() {
+  //Boot the user if they're not a current subscriber (double check on permissions)
+  global $user;
+  
+  //Add a new firearm form
+  $acquire_form = drupal_get_form('rfds_add_firearm_form');
+  $output = drupal_render($acquire_form);
+  
+  /**
+   * List the current 'In stock' stock of firearms as a sortable table.
+   */
+  $output .= "<h4>Current stock</h4>";
+  $output .= "<br>" . l("Printer-friendly stock list",'rfd/stock/firearms/printstock');
+  $firearmsHeader = array(
+    array('data' => 'Stock ID', 'field' => 'id', 'sort' => 'ASC'),
+    array('data' => 'Type', 'field' => 'type'),
+    array('data' => 'Serial number', 'field' => 'serial_number'),
+    array('data' => 'Description', 'field' => 'description'),
+    array('data' => 'Stock location', 'field' => 'stock_location'),
+    array('data' => 'Options'),
+  );
+  $firearmsRows = array();
+  $currentFirearms = db_select('rfds_firearms','f')
+                        ->fields('f',array())
+                        ->condition('status','in_stock','=')
+                        ->extend('PagerDefault')->limit(10)
+                        ->extend('TableSort')->orderByHeader($firearmsHeader)
+                        ->execute();
+  foreach ($currentFirearms as $firearm) {
+    $options = l("View full details","rfd/stock/firearms/$firearm->id") . "<br>" . l("Sell","rfd/sales/firearm/$firearm->id") . "<br>" . l("Loan","rfd/loan/$firearm->id");
+    $firearmsRows[] = array(
+      array('data' => $firearm->id),
+      array('data' => $firearm->type),
+      array('data' => $firearm->serial_number),
+      array('data' => $firearm->description),
+      array('data' => $firearm->stock_location),
+      array('data' => $options)
+    );
+  }
+  $output .= theme('table', array('header' => $firearmsHeader, 'rows' => $firearmsRows, 'empty' => 'There are no firearms currently in the database'));
+  $output .= theme('pager', array('tags' => array(), 'element' => 0));
+  
+  /**
+   * List the current fireams out on loan
+   */
+  $output .= "<h4>Firearms on loan</h4>";
+  $loansHeader = array(
+    array('data' => 'Stock ID', 'field' => 'id', 'sort' => 'ASC'),
+    array('data' => 'Type', 'field' => 'type'),
+    array('data' => 'Serial number', 'field' => 'serial_number'),
+    array('data' => 'Description', 'field' => 'description'),
+    array('data' => 'Stock location', 'field' => 'stock_location'),
+    array('data' => 'Options'),
+  );
+  $loansRows = array();
+  $loansFirearms = db_select('rfds_firearms','f')
+                        ->fields('f',array())
+                        ->condition('status','on_loan','=')
+                        ->extend('PagerDefault')->limit(10)
+                        ->extend('TableSort')->orderByHeader($firearmsHeader)
+                        ->execute();
+  foreach ($loansFirearms as $lent) {
+    $lentoptions = l("View full details","rfd/stock/firearms/$lent->id") . "<br>" . l("Sell","rfd/sales/firearm/$lent->id") . "<br>" . l("Return to stock", "rfd/sales/firearm/$lent->id/unloan");
+    $loansRows[] = array(
+      array('data' => $lent->id),
+      array('data' => $lent->type),
+      array('data' => $lent->serial_number),
+      array('data' => $lent->description),
+      array('data' => $lent->stock_location),
+      array('data' => $lentoptions)
+    );
+  }
+  $output .= theme('table', array('header' => $loansHeader, 'rows' => $loansRows, 'empty' => 'There are no firearms currently on loan'));
+  $output .= theme('pager', array('tags' => array(), 'element' => 1));
+  
+  /**
+   * Firearms that have been sold previously
+   */
+  $output .= "<h4>Firearms previously sold</h4>";
+  $soldHeader = array(
+    array('data' => 'Stock ID', 'field' => 'id', 'sort' => 'ASC'),
+    array('data' => 'Type', 'field' => 'type'),
+    array('data' => 'Serial number', 'field' => 'serial_number'),
+    array('data' => 'Description', 'field' => 'description'),
+    array('data' => 'Stock location', 'field' => 'stock_location'),
+    array('data' => 'Options'),
+  );
+  $soldRows = array();
+  $soldFirearms = db_select('rfds_firearms','f')
+                        ->fields('f',array())
+                        ->condition('status','sold','=')
+                        ->extend('PagerDefault')->limit(5)
+                        ->extend('TableSort')->orderByHeader($firearmsHeader)
+                        ->execute();
+  foreach ($soldFirearms as $sold) {
+    $soldoptions = l("View full details","rfd/stock/firearms/$sold->id");
+    $soldRows[] = array(
+      array('data' => $sold->id),
+      array('data' => $sold->type),
+      array('data' => $sold->serial_number),
+      array('data' => $sold->description),
+      array('data' => $sold->stock_location),
+      array('data' => $soldoptions)
+    );
+  }
+  $output .= theme('table', array('header' => $soldHeader, 'rows' => $soldRows, 'empty' => 'There are no firearms sold yet'));
+  $output .= theme('pager', array('tags' => array(), 'element' => 2));
+  
+  
+  return $output;
+}
+
+/**
+ * Page that shows the current stock of ammunition
+ */
+function rfds_ammo_stock_page() {
+  //Boot the user if they're not a current subscriber (double check on permissions)
+  global $user;
+  
+  //Add a new firearm form
+  $add_ammo_form = drupal_get_form('rfds_add_ammo_form');
+  $output = drupal_render($add_ammo_form);
+  
+  /**
+   * List the current 'In stock' stock of firearms as a sortable table.
+   */
+  $output .= "<h4>Current stock</h4>";
+  $ammoHeader = array(
+    array('data' => 'Stock ID', 'field' => 'id', 'sort' => 'ASC', 'width' => '5%'),
+    array('data' => 'Type', 'field' => 'type'),
+    array('data' => 'Batch', 'field' => 'batch'),
+    array('data' => 'Quantity in stock', 'field' => 'quantity', 'width' => '15%'),
+    array('data' => 'Options'),
+  );
+  $ammoRows = array();
+  $currentAmmo = db_select('rfds_ammo','a')
+                        ->fields('a',array())
+                        ->extend('PagerDefault')->limit(10)
+                        ->extend('TableSort')->orderByHeader($ammoHeader)
+                        ->execute();
+  foreach ($currentAmmo as $ammo) {
+    $options = l("View details","rfd/stock/ammo/$ammo->id") . "<br>" . l("Sell","rfd/sales/ammo/$ammo->id");
+    $ammoInfo = db_select('rfds_ammo_types','t')
+                ->fields('t',array())
+                ->condition('id',$ammo->id,'=')
+                ->execute()->fetchAssoc();
+    $ammoType = $ammoInfo['manufacturer'] . " " . $ammoInfo['product'];
+    $ammoRows[] = array(
+      array('data' => "A" . $ammo->id),
+      array('data' => $ammoType),
+      array('data' => $ammo->batch),
+      array('data' => $ammo->quantity),
+      array('data' => $options)
+    );
+  }
+  $output .= theme('table', array('header' => $ammoHeader, 'rows' => $ammoRows, 'empty' => 'There are no firearms currently in the database'));
+  $output .= theme('pager', array('tags' => array(), 'element' => 0));
+  
+  /**
+   * previous sales
+   */
+  $output .= "<h4>Previous ammo sales</h4>";
+  $salesHeader = array(
+    array('data' => 'Stock ID', 'field' => 'id'),
+    array('data' => 'Date of sale', 'field' => 'date', 'sort' => 'DESC'),
+    array('data' => 'Type', 'field' => 'type'),
+    array('data' => 'Batch', 'field' => 'batch'),
+    array('data' => 'Quantity sold', 'field' => 'num_rounds'),
+    array('data' => 'Sold to', 'field' => 'supplied_to'),
+    array('data' => 'Sold by', 'field' => 'recorded_by')
+  );
+  $salesRows = array();
+  $sales = db_select('rfds_ammo_movements','m')
+            ->fields('m',array())
+            ->extend('PagerDefault')->limit(10)
+            ->extend('TableSort')->orderByHeader($salesHeader)
+            ->execute();
+  foreach ($sales as $sale) {
+    $ammoInfo = db_select('rfds_ammo','t')
+                ->fields('t',array())
+                ->condition('id',$sale->ammo,'=')
+                ->execute()->fetchObject();
+    $ammoTypeInfo = db_select('rfds_ammo_types','ta')
+                    ->fields('ta',array())
+                    ->condition('id',$sale->ammo,'=')
+                    ->execute()->fetchAssoc();
+    $ammoType = $ammoTypeInfo['manufacturer'] . " " . $ammoTypeInfo['product'];
+    $recorder = user_load($sale->recorded_by);
+    $salesRows[] = array(
+      array('data' => "A" .$sale->ammo),
+      array('data' => date('d-m-Y',$sale->date)),
+      array('data' => $ammoType),
+      array('data' => $ammoInfo->batch),
+      array('data' => $sale->num_rounds),
+      array('data' => "$sale->supplied_to ($sale->supplied_to_certificate)"),
+      array('data' => $recorder->name),
+    );
+  }
+  $output .= theme('table', array('header' => $salesHeader, 'rows' => $salesRows, 'empty' => 'There are no ammunition sale records yet.'));
+  $output .= theme('pager', array('tags' => array(), 'element' => 1));
+  
+  return $output;
+}

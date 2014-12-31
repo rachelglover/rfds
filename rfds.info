@@ -1,0 +1,9 @@
+name = RFD-Subscription-model
+description = Stock tracking software for Registered Firearms Dealers with features to automatically contact the relevant police force upon sale/transfer/aquisition. Stock take options also included. 
+package = Foresight Shooting
+core = 7.x
+files[] = rfds.install
+files[] = rfds.module
+dependencies[] = date
+dependencies[] = date_api
+dependencies[] = date_popup
