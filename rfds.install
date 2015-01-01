@@ -377,12 +377,20 @@ function rfds_schema() {
  * Implements hook_enable()
  */
 function rfds_enable() {
-  return NULL; //for the moment
+  $menu = array(
+    'menu_name' => 'rfd',
+    'title' => t("RFD menu"),
+    'description' => t("RFD menu")
+  );
+  menu_save($menu);
+  cache_clear_all('*', 'cache_menu', TRUE);
+  
+  
 }
 
 /**
  * Implements hook_disable()
  */
 function rfds_disable() {
-  return NULL; //for the moment
+  return null;
 }

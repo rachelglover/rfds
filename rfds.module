@@ -17,19 +17,21 @@ function rfds_menu() {
   $items['rfd/stock'] = array(
     'title' => 'Stock overview',
     'page callback' => array('rfds_stock_overview_page'),
-    'access arguments' => array('user_is_logged_in'), //will be specific later
+    'access callback' => 'user_is_logged_in', //will be specific later
+    'menu_name' => 'rfd',
   );
   
   $items['rfd/stock/firearms'] = array(
     'title' => 'Firearms stock',
     'page callback' => array('rfds_firearms_stock_page'),
-    'access arguments' => array('user_is_logged_in'), //will be specific later
+    'access callback' => 'user_is_logged_in', //will be specific later
+    'menu_name' => 'rfd',
   );
   
   $items['rfd/stock/firearms/printstock'] = array(
     'title' => 'Current stock list (firearms)',
     'page callback' => array('rfds_firearms_stock_printstock_page'),
-    'access arguments' => array('user_is_logged_in'), //will be specific later
+    'access callback' => 'user_is_logged_in', //will be specific later
     'type' => MENU_CALLBACK,
   );
   
@@ -37,48 +39,49 @@ function rfds_menu() {
     'title' => 'Full details',
     'page callback' => array('rfds_firearm_details_page'),
     'page arguments' => array(3),
-    'access arguments' => array('user_is_logged_in'), //will be specific later. 
+    'access callback' => 'user_is_logged_in', //will be specific later. 
   );
   
   $items['rfd/stock/ammo'] = array(
     'title' => 'Ammunition stock',
     'page callback' => array('rfds_ammo_stock_page'),
-    'access arguments' => array('user_is_logged_in'), //will be specific later
+    'access callback' => 'user_is_logged_in', //will be specific later
+    'menu_name' => 'rfd'
   );
   
   $items['rfd/stock/ammo/%'] = array(
     'title' => 'Full details',
     'page callback' => array('rfds_ammo_details_page'),
     'page arguments' => array(3),
-    'access arguments' => array('user_is_logged_in'),
+    'access callback' => 'user_is_logged_in',
   );
   
   $items['rfd/sales/firearm/%'] = array(
     'title' => 'Firearm sale record',
     'page callback' => array('rfds_firearms_sale_page'),
     'page arguments' => array(3),
-    'access callback' => array('user_is_logged_in'), //will be specific later
+    'access callback' => 'user_is_logged_in', //will be specific later
   );
   
   $items['rfd/sales/firearm/%/unloan'] = array(
     'title' => 'Unloan a firearm: return to stock',
     'page callback' => array('rfds_firearms_unloan'),
     'page arguments' => array(3),
-    'access callback' => array('user_is_logged_in'), //will be specific later
+    'access callback' => 'user_is_logged_in', //will be specific later
   );
   
   $items['rfd/sales/ammo/%'] = array(
     'title' => 'Ammunition sale record',
     'page callback' => array('rfds_ammo_sale_page'),
     'page arguments' => array(3),
-    'access callback' => array('user_is_logged_in'), //will be specific later
+    'access callback' => 'user_is_logged_in', //will be specific later
   );
   
   $items['rfd/loan/%'] = array(
     'title' => 'Firearm loan record',
     'page callback' => array('rfds_firearms_loan_page'),
     'page arguments' => array(2),
-    'access callback' => array('user_is_logged_in'), //will be specific later
+    'access callback' => 'user_is_logged_in', //will be specific later
   );
   
   return $items;
