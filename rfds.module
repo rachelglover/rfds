@@ -215,7 +215,7 @@ function rfds_ammo_details_page($aid) {
   $date = date('d-m-Y',$ammo->timestamp) . " at " . date('H:i',$ammo->timestamp);
   $ammoTypeInfo = db_select('rfds_ammo_types','ta')
                     ->fields('ta',array())
-                    ->condition('id',$aid,'=')
+                    ->condition('id',$ammo->type,'=')
                     ->execute()->fetchAssoc();
   $ammoType = $ammoTypeInfo['manufacturer'] . " " . $ammoTypeInfo['product'];
   $output = "
@@ -984,6 +984,7 @@ function rfds_add_ammo_form_submit($form, &$form_state) {
   global $user;
   
   $type = NULL;
+  $aid = NULL;
   if ($form_state['values']['type'] == 'new') {
     $type = db_insert('rfds_ammo_types')
             ->fields(array(
@@ -993,12 +994,7 @@ function rfds_add_ammo_form_submit($form, &$form_state) {
               'timestamp' => time(),
             ))
             ->execute();
-    if ($type) {
-      drupal_set_message("New ammunition type added.");
-    }
-  }
-  
-  $aid = db_insert('rfds_ammo')
+    $aid = db_insert('rfds_ammo')
           ->fields(array(
             'recorded_by' => $user->uid,
             'type' => $type,
@@ -1008,6 +1004,22 @@ function rfds_add_ammo_form_submit($form, &$form_state) {
             'timestamp' => time(),
           ))
           ->execute();
+    if ($type) {
+      drupal_set_message("New ammunition type added.");
+    }
+  } else {
+    # This is ammo of an existing type
+    $aid = db_insert('rfds_ammo')
+          ->fields(array(
+            'recorded_by' => $user->uid,
+            'type' => $form_state['values']['type'],
+            'batch' => $form_state['values']['batch'],
+            'quantity' => $form_state['values']['quantity'],
+            'cost' => $form_state['values']['cost'],
+            'timestamp' => time(),
+          ))
+          ->execute();
+  }
   
   if ($aid) {
     drupal_set_message("Ammunition added to stock.");
@@ -1376,7 +1388,7 @@ function rfds_ammo_stock_page() {
     $options = l("View details","rfd/stock/ammo/$ammo->id") . "<br>" . l("Sell","rfd/sales/ammo/$ammo->id");
     $ammoInfo = db_select('rfds_ammo_types','t')
                 ->fields('t',array())
-                ->condition('id',$ammo->id,'=')
+                ->condition('id',$ammo->type,'=')
                 ->execute()->fetchAssoc();
     $ammoType = $ammoInfo['manufacturer'] . " " . $ammoInfo['product'];
     $ammoRows[] = array(
