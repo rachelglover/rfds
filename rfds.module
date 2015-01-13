@@ -42,6 +42,13 @@ function rfds_menu() {
     'access callback' => 'user_is_logged_in', //will be specific later. 
   );
   
+  $items['rfd/stock/firearms/%/edit'] = array(
+    'title' => 'Edit firearm details',
+    'page callback' => array('rfds_firearm_details_edit_page'),
+    'page arguments' => array(3),
+    'access callback' => 'user_is_logged_in', //will be specific later
+  );
+  
   $items['rfd/stock/ammo'] = array(
     'title' => 'Ammunition stock',
     'page callback' => array('rfds_ammo_stock_page'),
@@ -85,6 +92,180 @@ function rfds_menu() {
   );
   
   return $items;
+}
+
+/**
+ * Edit firearm details page
+ */
+function rfds_firearm_details_edit_page($fid) {
+  $form_state = array(
+    'title' => 'Edit firearm details',
+    'ajax' => TRUE,
+    'args' => array(
+      'fid' => $fid,
+    ),
+  );
+  
+  $firearm_edit_form = drupal_build_form('rfds_firearm_details_edit_form',$form_state);
+  return drupal_render($firearm_edit_form);
+}
+
+/**
+ * Edit firearm details form
+ */
+function rfds_firearm_details_edit_form($form, &$form_state) {
+  $form = array();
+  $fid = $form_state['args']['fid'];
+  //Get current details
+  $firearm = db_select('rfds_firearms','f')
+              ->fields('f',array())
+              ->condition('id',$fid,'=')
+              ->execute()->fetchObject();
+  
+  $form['add']['type'] = array(
+    '#type' => 'textfield',
+    '#title' => 'Firearm type',
+    '#description' => 'e.g. shotgun, .22 rifle',
+    '#required' => TRUE,
+    '#default_value' => (!empty($firearm->type) ? $firearm->type : NULL)
+  );
+  
+  $form['add']['serial_number'] = array(
+    '#type' => 'textfield',
+    '#title' => 'Serial number',
+    '#required' => TRUE,
+    '#default_value' => (!empty($firearm->serial_number) ? $firearm->serial_number : NULL)
+  );
+  
+  $form['add']['description'] = array(
+    '#type' => 'textfield',
+    '#title' => 'Description',
+    '#required' => FALSE,
+    '#default_value' => (!empty($firearm->description) ? $firearm->description : NULL)
+  );
+  
+  $form['add']['supplied_by'] = array(
+    '#type' => 'textfield',
+    '#title' => 'Supplied by',
+    '#description' => 'Full name',
+    '#required' => TRUE,
+    '#default_value' => (!empty($firearm->supplied_by) ? $firearm->supplied_by : NULL)
+  );
+  
+  $form['add']['supplied_by_certificate'] = array(
+    '#type' => 'textfield',
+    '#title' => 'Supplier certificate number',
+    '#required' => TRUE,
+    '#default_value' => (!empty($firearm->supplied_by_certificate) ? $firearm->supplied_by_certificate : NULL)
+  );
+  
+  $form['add']['supplied_by_certificate_valid_from'] = array(
+    '#type' => 'date_popup',
+    '#date_format' => 'Y-m-d',
+    '#date_year_range' => '-10:+20',
+    '#date_label_position' => 'within',
+    '#title' => 'Supplier certificate valid from',
+    '#required' => TRUE,
+    '#default_value' => (!empty($firearm->supplied_by_certificate_valid_from) ? date('Y-m-d',$firearm->supplied_by_certificate_valid_from) : NULL)
+  );
+  $form['add']['supplied_by_certificate_valid_to'] = array(
+    '#type' => 'date_popup',
+    '#date_format' => 'Y-m-d',
+    '#date_year_range' => '-10:+10',
+    '#date_label_position' => 'within',
+    '#title' => 'Supplier certificate valid to',
+    '#required' => TRUE,
+    '#default_value' => (!empty($firearm->supplied_by_certificate_valid_to) ? date('Y-m-d',$firearm->supplied_by_certificate_valid_to) : NULL)
+  );
+  
+  $form['add']['supplied_by_address_1'] = array(
+    '#type' => 'textfield',
+    '#title' => 'Supplier address line 1',
+    '#default_value' => (!empty($firearm->supplied_by_address_1) ? $firearm->supplied_by_address_1 : NULL)
+  );
+  
+  $form['add']['supplied_by_address_2'] = array(
+    '#type' => 'textfield',
+    '#title' => 'Supplier address 2',
+    '#default_value' => (!empty($firearm->supplied_by_address_2) ? $firearm->supplied_by_address_2 : NULL)
+  );
+  
+  $form['add']['supplied_by_address_town'] = array(
+    '#type' => 'textfield',
+    '#title' => 'Supplier town/city',
+    '#default_value' => (!empty($firearm->supplied_by_address_town) ? $firearm->supplied_by_address_town : NULL)
+  );
+  
+  $form['add']['supplied_by_address_county'] = array(
+    '#type' => 'textfield',
+    '#title' => 'Supplier county',
+    '#default_value' => (!empty($firearm->supplied_by_address_county) ? $firearm->supplied_by_address_county : NULL)
+  );
+  
+  $form['add']['supplied_by_address_postcode'] = array(
+    '#type' => 'textfield',
+    '#title' => 'Supplier postcode',
+    '#default_value' => (!empty($firearm->supplied_by_address_postcode) ? $firearm->supplied_by_address_postcode : NULL)
+  );
+  
+  $form['add']['supplied_price'] = array(
+    '#type' => 'textfield',
+    '#title' => 'Price',
+    '#default_value' => (!empty($firearm->supplied_price) ? $firearm->supplied_price : NULL)
+  );
+  
+  $form['add']['date_supplied'] = array(
+    '#type' => 'date_popup',
+    '#date_format' => 'Y-m-d',
+    '#date_label_position' => 'within',
+    '#title' => 'Date acquired',
+    '#required' => TRUE,
+    '#default_value' => (!empty($firearm->date_supplied) ? date('Y-m-d',$firearm->date_supplied) : NULL)
+  );
+  
+  $form['add']['stock_location'] = array(
+    '#type' => 'textfield',
+    '#title' => 'Stock location',
+    '#description' => 'i.e. if you store firearms in multiple locations',
+    '#default_value' => (!empty($firearm->stock_location) ? $firearm->stock_location : NULL)
+  );
+  
+  $form['add']['submit'] = array(
+    '#type' => 'submit',
+    '#value' => 'Submit',
+  );
+  
+  return $form;
+}
+
+/**
+ * Edit firearm details form submit
+ */
+function rfds_firearm_details_edit_form_submit($form, &$form_state) {
+  //redirect back to details page
+  global $user;
+  $fid = $form_state['args']['fid'];
+  db_update('rfds_firearms')
+          ->fields(array(
+            'type' => $form_state['values']['type'],
+            'serial_number' => $form_state['values']['serial_number'],
+            'description' => $form_state['values']['description'],
+            'supplied_by' => $form_state['values']['supplied_by'],
+            'supplied_by_certificate' => $form_state['values']['supplied_by_certificate'],
+            'supplied_by_certificate_valid_from' => strtotime($form_state['values']['supplied_by_certificate_valid_from']),
+            'supplied_by_certificate_valid_to' => strtotime($form_state['values']['supplied_by_certificate_valid_to']),
+            'date_supplied' => strtotime($form_state['values']['date_supplied']),
+            'supplied_by_address_1' => $form_state['values']['supplied_by_address_1'],
+            'supplied_by_address_2' => $form_state['values']['supplied_by_address_2'],
+            'supplied_by_address_town' => $form_state['values']['supplied_by_address_town'],
+            'supplied_by_address_county' => $form_state['values']['supplied_by_address_county'],
+            'supplied_by_address_postcode' => $form_state['values']['supplied_by_address_postcode'],
+            'supplied_price' => $form_state['values']['supplied_price'],
+            'stock_location' => $form_state['values']['stock_location'],
+          ))
+          ->execute();
+  drupal_set_message("Firearm $fid has been edited.");
+  drupal_goto("rfd/stock/firearms/$fid/");
 }
 
 /**
@@ -162,6 +343,7 @@ function rfds_firearm_details_page($fid) {
                   <tr><td>Date supplied</td><td>" . date('d-M-Y',$firearm->date_supplied) . "</td></tr>
                   <tr><td>Stock location</td><td>$firearm->stock_location</td></tr></table>
   ";
+  $output .= l("Edit these details","rfd/stock/firearms/$firearmId/edit");
   if ($firearm->status == "on_loan") {
     $movement = db_select('rfds_firearm_movements','m1')
                   ->fields('m1',array())
@@ -472,7 +654,7 @@ function rfds_add_firearm_form_submit($form, &$form_state) {
             'supplied_by' => $form_state['values']['supplied_by'],
             'supplied_by_certificate' => $form_state['values']['supplied_by_certificate'],
             'supplied_by_certificate_valid_from' => strtotime($form_state['values']['supplied_by_certificate_valid_from']),
-            'supplied_by_certificate_valid_to' => strtotime($form_state['values']['supplied_by_certificate_valid_from']),
+            'supplied_by_certificate_valid_to' => strtotime($form_state['values']['supplied_by_certificate_valid_to']),
             'date_supplied' => strtotime($form_state['values']['date_supplied']),
             'supplied_by_address_1' => $form_state['values']['supplied_by_address_1'],
             'supplied_by_address_2' => $form_state['values']['supplied_by_address_2'],
