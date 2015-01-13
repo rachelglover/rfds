@@ -97,6 +97,7 @@ function rfds_schema() {
         'description' => 'Price bought for',
         'type' => 'float',
         'not null' => FALSE, //not required
+        'default' => 0
       ),
       'stock_location' => array(
         'description' => 'Location of the firearm',
@@ -148,6 +149,7 @@ function rfds_schema() {
         'description' => 'ammo purchase cost',
         'type' => 'float',
         'not null' => FALSE,
+        'default' => 0
       ),
       'timestamp' => array(
         'description' => 'Input timestamp',

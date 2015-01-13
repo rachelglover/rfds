@@ -210,7 +210,7 @@ function rfds_firearm_details_edit_form($form, &$form_state) {
   $form['add']['supplied_price'] = array(
     '#type' => 'textfield',
     '#title' => 'Price',
-    '#default_value' => (!empty($firearm->supplied_price) ? $firearm->supplied_price : NULL)
+    '#default_value' => (!empty($firearm->supplied_price) ? $firearm->supplied_price : 0)
   );
   
   $form['add']['date_supplied'] = array(
@@ -622,6 +622,7 @@ function rfds_add_firearm_form($form, &$form_state) {
   $form['add']['supplied_price'] = array(
     '#type' => 'textfield',
     '#title' => 'Price',
+    '#default_value' => 0
   );
   
   $form['add']['date_supplied'] = array(
@@ -796,6 +797,7 @@ function rfds_sell_firearm_form($form, &$form_state) {
   $form['supplied_price'] = array(
     '#type' => 'textfield',
     '#title' => 'Sold price',
+    '#default_value' => 0,
   );
   
   $form['date'] = array(
@@ -1001,7 +1003,8 @@ function rfds_loan_firearm_form($form, &$form_state) {
   $form['supplied_price'] = array(
     '#type' => 'textfield',
     '#title' => 'Loan price',
-    '#description' => 'If free, put 0'
+    '#description' => 'If free, put 0',
+    '#default_value' => 0
   );
   
   $form['date'] = array(
@@ -1159,6 +1162,7 @@ function rfds_add_ammo_form($form, &$form_state) {
   $form['add']['cost'] = array(
     '#type' => 'textfield',
     '#title' => 'Price',
+    '#default_value' => 0,
   );
   
   $form['add']['submit'] = array(
@@ -1314,6 +1318,7 @@ function rfds_sell_ammo_form($form, &$form_state) {
   $form['supplied_price'] = array(
     '#type' => 'textfield',
     '#title' => 'Sold price',
+    '#default_value' => 0
   );
   
   $form['date'] = array(
