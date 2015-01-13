@@ -127,7 +127,7 @@ function rfds_schema() {
       'type' => array(
         'description' => 'Table ref ID to manufacturer and make [table: rfd_ammo_types]',
         'type' => 'int',
-        'not null' => TRUE,//required
+        'not null' => FALSE,
       ),
       'batch' => array(
         'description' => 'The batch number of this type of ammo',
@@ -137,12 +137,12 @@ function rfds_schema() {
       'quantity' => array(
         'description' => 'Current quantity of this batch of ammo IN ROUNDS',
         'type' => 'int',
-        'not null' => TRUE, //not required
+        'not null' => FALSE,
       ),
       'cost' => array(
         'description' => 'ammo purchase cost',
         'type' => 'float',
-        'not null' => TRUE, //not required
+        'not null' => FALSE,
       ),
       'timestamp' => array(
         'description' => 'Input timestamp',
@@ -168,12 +168,12 @@ function rfds_schema() {
       'manufacturer' => array(
         'description' => 'The manufacturer of the ammo',
         'type' => 'text',
-        'not null' => TRUE,//required
+        'not null' => FALSE,
       ),
       'product' => array(
         'description' => 'The ammo product (e.g. Tenex, Club, Edge)',
         'type' => 'text',
-        'not null' => TRUE,//required
+        'not null' => FALSE,
       ),
       'timestamp' => array(
         'description' => 'Input timestamp',
