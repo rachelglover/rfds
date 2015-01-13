@@ -26,67 +26,67 @@ function rfds_schema() {
       'type' => array(
         'description' => 'e.g. rifle, shotgun, air rifle, 22RF etc',
         'type' => 'text',
-        'not null' => TRUE, //required
+        'not null' => FALSE,
       ),
       'serial_number' => array(
         'description' => 'Serial number of the firearm',
         'type' => 'text',
-        'not null' => FALSE, //possible no serial
+        'not null' => FALSE, 
       ),
       'description' => array(
         'description' => 'Additional information about the firearm',
         'type' => 'text',
-        'not null' => FALSE, //possible no additional description
+        'not null' => FALSE, 
       ),
       'supplied_by' => array(
         'description' => 'Full name of whoever supplied the firearm',
         'type' => 'text',
-        'not null' => TRUE, //required
+        'not null' => FALSE,
       ),
       'supplied_by_certificate' => array(
         'description' => 'Certificate number of the person who supplied the firearm',
         'type' => 'text',
-        'not null' => TRUE, //required
+        'not null' => FALSE,
       ),
       'supplied_by_certificate_valid_from' => array(
         'description' => 'valid from date on fac. unix timestamp',
         'type' => 'int',
-        'not null' => TRUE, //required
+        'not null' => FALSE,
       ),
       'supplied_by_certificate_valid_to' => array(
         'description' => 'valid to from date on fac. unix timestamp',
         'type' => 'int',
-        'not null' => TRUE, //required
+        'not null' => FALSE,
       ),
       'date_supplied' => array(
         'description' => 'Date in, unix timestamp',
         'type' => 'int',
-        'not null' => TRUE, //required
+        'not null' => FALSE,
       ),
       'supplied_by_address_1' => array(
         'description' => 'address line 1',
         'type' => 'text',
-        'not null' => TRUE, //required
+        'not null' => FALSE,
       ),
       'supplied_by_address_2' => array(
         'description' => 'address line 2',
         'type' => 'text',
-        'not null' => FALSE, //optional
+        'not null' => FALSE,
       ),
       'supplied_by_address_town' => array(
         'description' => 'address line 2',
         'type' => 'text',
-        'not null' => TRUE, //true
+        'not null' => FALSE,
       ),
       'supplied_by_address_county' => array(
         'description' => 'address county',
         'type' => 'text',
-        'not null' => TRUE, //required
+        'not null' => FALSE,
       ),
       'supplied_by_address_postcode' => array(
         'description' => 'address post code',
         'type' => 'text',
-        'not null' => TRUE, //required
+        'not null' => FALSE,
       ),
       'supplied_price' => array(
         'description' => 'Price bought for',

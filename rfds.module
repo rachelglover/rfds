@@ -126,21 +126,18 @@ function rfds_firearm_details_edit_form($form, &$form_state) {
     '#type' => 'textfield',
     '#title' => 'Firearm type',
     '#description' => 'e.g. shotgun, .22 rifle',
-    '#required' => TRUE,
     '#default_value' => (!empty($firearm->type) ? $firearm->type : NULL)
   );
   
   $form['add']['serial_number'] = array(
     '#type' => 'textfield',
     '#title' => 'Serial number',
-    '#required' => TRUE,
     '#default_value' => (!empty($firearm->serial_number) ? $firearm->serial_number : NULL)
   );
   
   $form['add']['description'] = array(
     '#type' => 'textfield',
     '#title' => 'Description',
-    '#required' => FALSE,
     '#default_value' => (!empty($firearm->description) ? $firearm->description : NULL)
   );
   
@@ -148,14 +145,12 @@ function rfds_firearm_details_edit_form($form, &$form_state) {
     '#type' => 'textfield',
     '#title' => 'Supplied by',
     '#description' => 'Full name',
-    '#required' => TRUE,
     '#default_value' => (!empty($firearm->supplied_by) ? $firearm->supplied_by : NULL)
   );
   
   $form['add']['supplied_by_certificate'] = array(
     '#type' => 'textfield',
     '#title' => 'Supplier certificate number',
-    '#required' => TRUE,
     '#default_value' => (!empty($firearm->supplied_by_certificate) ? $firearm->supplied_by_certificate : NULL)
   );
   
@@ -165,7 +160,6 @@ function rfds_firearm_details_edit_form($form, &$form_state) {
     '#date_year_range' => '-10:+20',
     '#date_label_position' => 'within',
     '#title' => 'Supplier certificate valid from',
-    '#required' => TRUE,
     '#default_value' => (!empty($firearm->supplied_by_certificate_valid_from) ? date('Y-m-d',$firearm->supplied_by_certificate_valid_from) : NULL)
   );
   $form['add']['supplied_by_certificate_valid_to'] = array(
@@ -174,7 +168,6 @@ function rfds_firearm_details_edit_form($form, &$form_state) {
     '#date_year_range' => '-10:+10',
     '#date_label_position' => 'within',
     '#title' => 'Supplier certificate valid to',
-    '#required' => TRUE,
     '#default_value' => (!empty($firearm->supplied_by_certificate_valid_to) ? date('Y-m-d',$firearm->supplied_by_certificate_valid_to) : NULL)
   );
   
@@ -219,7 +212,6 @@ function rfds_firearm_details_edit_form($form, &$form_state) {
     '#date_format' => 'Y-m-d',
     '#date_label_position' => 'within',
     '#title' => 'Date acquired',
-    '#required' => TRUE,
     '#default_value' => (!empty($firearm->date_supplied) ? date('Y-m-d',$firearm->date_supplied) : NULL)
   );
   
@@ -263,6 +255,7 @@ function rfds_firearm_details_edit_form_submit($form, &$form_state) {
             'supplied_price' => $form_state['values']['supplied_price'],
             'stock_location' => $form_state['values']['stock_location'],
           ))
+          ->condition('id',$fid,'=')
           ->execute();
   drupal_set_message("Firearm $fid has been edited.");
   drupal_goto("rfd/stock/firearms/$fid/");
@@ -540,13 +533,13 @@ function rfds_add_firearm_form($form, &$form_state) {
     '#type' => 'textfield',
     '#title' => 'Firearm type',
     '#description' => 'e.g. shotgun, .22 rifle',
-    '#required' => TRUE,
+   
   );
   
   $form['add']['serial_number'] = array(
     '#type' => 'textfield',
     '#title' => 'Serial number',
-    '#required' => TRUE,
+   
   );
   
   $form['add']['description'] = array(
@@ -559,13 +552,13 @@ function rfds_add_firearm_form($form, &$form_state) {
     '#type' => 'textfield',
     '#title' => 'Supplied by',
     '#description' => 'Full name',
-    '#required' => TRUE,
+   
   );
   
   $form['add']['supplied_by_certificate'] = array(
     '#type' => 'textfield',
     '#title' => 'Supplier certificate number',
-    '#required' => TRUE,
+   
   );
   
   $form['add']['supplied_by_certificate_valid_from'] = array(
@@ -575,7 +568,7 @@ function rfds_add_firearm_form($form, &$form_state) {
     '#default_value' => date('Y-m-d'),
     '#date_label_position' => 'within',
     '#title' => 'Supplier certificate valid from',
-    '#required' => TRUE,
+   
   );
   $form['add']['supplied_by_certificate_valid_to'] = array(
     '#type' => 'date_popup',
@@ -584,7 +577,7 @@ function rfds_add_firearm_form($form, &$form_state) {
     '#default_value' => date('Y-m-d'),
     '#date_label_position' => 'within',
     '#title' => 'Supplier certificate valid to',
-    '#required' => TRUE,
+   
   );
   
   $form['add']['supplied_by_address_1'] = array(
@@ -623,7 +616,7 @@ function rfds_add_firearm_form($form, &$form_state) {
     '#default_value' => date('Y-m-d'),
     '#date_label_position' => 'within',
     '#title' => 'Date acquired',
-    '#required' => TRUE,
+   
   );
   
   $form['add']['stock_location'] = array(
@@ -708,7 +701,7 @@ function rfds_sell_firearm_form($form, &$form_state) {
       0 => 'No',
       1 => 'Yes',
     ),
-    '#required' => TRUE,
+   
   );
   
   $form['police_notification_email_address'] = array(
@@ -726,13 +719,13 @@ function rfds_sell_firearm_form($form, &$form_state) {
     '#type' => 'textfield',
     '#title' => 'Who was the firearm supplied to?',
     '#description' => 'Full name',
-    '#required' => TRUE,
+   
   );
   
   $form['supplied_to_certificate'] = array(
     '#type' => 'textfield',
     '#title' => 'Certificate number',
-    '#required' => TRUE,
+   
   );
   
   $form['supplied_to_certificate_valid_from'] = array(
@@ -742,7 +735,7 @@ function rfds_sell_firearm_form($form, &$form_state) {
     '#default_value' => date('Y-m-d'),
     '#date_label_position' => 'within',
     '#title' => 'Certificate valid from',
-    '#required' => TRUE,
+   
   );
   
   $form['supplied_to_certificate_valid_to'] = array(
@@ -752,13 +745,13 @@ function rfds_sell_firearm_form($form, &$form_state) {
     '#default_value' => date('Y-m-d'),
     '#date_label_position' => 'within',
     '#title' => 'Certificate valid to',
-    '#required' => TRUE,
+   
   );
   
   $form['supplied_to_address_1'] = array(
     '#type' => 'textfield',
     '#title' => 'Address line 1',
-    '#required' => TRUE,
+   
   );
   
   $form['supplied_to_address_2'] = array(
@@ -769,19 +762,19 @@ function rfds_sell_firearm_form($form, &$form_state) {
   $form['supplied_to_address_town'] = array(
     '#type' => 'textfield',
     '#title' => 'Town/City',
-    '#required' => True,
+   
   );
   
   $form['supplied_to_address_county'] = array(
     '#type' => 'textfield',
     '#title' => 'County',
-    '#required' => True,
+   
   );
   
   $form['supplied_to_address_postcode'] = array(
     '#type' => 'textfield',
     '#title' => 'Postcode',
-    '#required' => True,
+   
   );
   
   $form['supplied_price'] = array(
@@ -795,7 +788,7 @@ function rfds_sell_firearm_form($form, &$form_state) {
     '#date_format' => 'Y-m-d',
     '#default_value' => date('Y-m-d'),
     '#date_label_position' => 'within',
-    '#required' => TRUE,
+   
   );
   
   $form['comments'] = array(
@@ -912,7 +905,7 @@ function rfds_loan_firearm_form($form, &$form_state) {
       0 => 'No',
       1 => 'Yes',
     ),
-    '#required' => TRUE,
+   
   );
   
   $form['police_notification_email_address'] = array(
@@ -930,13 +923,13 @@ function rfds_loan_firearm_form($form, &$form_state) {
     '#type' => 'textfield',
     '#title' => 'Who was the firearm loaned to?',
     '#description' => 'Full name',
-    '#required' => TRUE,
+   
   );
   
   $form['supplied_to_certificate'] = array(
     '#type' => 'textfield',
     '#title' => 'Certificate number',
-    '#required' => TRUE,
+   
   );
   
   $form['supplied_to_certificate_valid_from'] = array(
@@ -946,7 +939,7 @@ function rfds_loan_firearm_form($form, &$form_state) {
     '#default_value' => date('Y-m-d'),
     '#date_label_position' => 'within',
     '#title' => 'Certificate valid from',
-    '#required' => TRUE,
+   
   );
   
   $form['supplied_to_certificate_valid_to'] = array(
@@ -956,13 +949,13 @@ function rfds_loan_firearm_form($form, &$form_state) {
     '#default_value' => date('Y-m-d'),
     '#date_label_position' => 'within',
     '#title' => 'Certificate valid to',
-    '#required' => TRUE,
+   
   );
   
   $form['supplied_to_address_1'] = array(
     '#type' => 'textfield',
     '#title' => 'Address line 1',
-    '#required' => TRUE,
+   
   );
   
   $form['supplied_to_address_2'] = array(
@@ -973,19 +966,19 @@ function rfds_loan_firearm_form($form, &$form_state) {
   $form['supplied_to_address_town'] = array(
     '#type' => 'textfield',
     '#title' => 'Town/City',
-    '#required' => True,
+   
   );
   
   $form['supplied_to_address_county'] = array(
     '#type' => 'textfield',
     '#title' => 'County',
-    '#required' => True,
+   
   );
   
   $form['supplied_to_address_postcode'] = array(
     '#type' => 'textfield',
     '#title' => 'Postcode',
-    '#required' => True,
+   
   );
   
   $form['supplied_price'] = array(
@@ -1000,7 +993,7 @@ function rfds_loan_firearm_form($form, &$form_state) {
     '#date_format' => 'Y-m-d',
     '#default_value' => date('Y-m-d'),
     '#date_label_position' => 'within',
-    '#required' => TRUE,
+   
   );
   
   $form['comments'] = array(
@@ -1236,20 +1229,20 @@ function rfds_sell_ammo_form($form, &$form_state) {
   $form['amount'] = array(
     '#type' => 'textfield',
     '#title' => 'Number of rounds',
-    '#required' => TRUE,
+   
   );
   
   $form['supplied_to'] = array(
     '#type' => 'textfield',
     '#title' => 'Supplied to',
     '#description' => 'Full name',
-    '#required' => TRUE,
+   
   );
   
   $form['supplied_to_certificate'] = array(
     '#type' => 'textfield',
     '#title' => 'Certificate number',
-    '#required' => TRUE,
+   
   );
   
   $form['supplied_to_certificate_valid_from'] = array(
@@ -1259,7 +1252,7 @@ function rfds_sell_ammo_form($form, &$form_state) {
     '#default_value' => date('Y-m-d'),
     '#date_label_position' => 'within',
     '#title' => 'Certificate valid from',
-    '#required' => TRUE,
+   
   );
   
   $form['supplied_to_certificate_valid_to'] = array(
@@ -1269,13 +1262,13 @@ function rfds_sell_ammo_form($form, &$form_state) {
     '#default_value' => date('Y-m-d'),
     '#date_label_position' => 'within',
     '#title' => 'Certificate valid to',
-    '#required' => TRUE,
+   
   );
   
   $form['supplied_to_address_1'] = array(
     '#type' => 'textfield',
     '#title' => 'Address line 1',
-    '#required' => TRUE,
+   
   );
   
   $form['supplied_to_address_2'] = array(
@@ -1286,19 +1279,19 @@ function rfds_sell_ammo_form($form, &$form_state) {
   $form['supplied_to_address_town'] = array(
     '#type' => 'textfield',
     '#title' => 'Town/City',
-    '#required' => True,
+   
   );
   
   $form['supplied_to_address_county'] = array(
     '#type' => 'textfield',
     '#title' => 'County',
-    '#required' => True,
+   
   );
   
   $form['supplied_to_address_postcode'] = array(
     '#type' => 'textfield',
     '#title' => 'Postcode',
-    '#required' => True,
+   
   );
   
   $form['supplied_price'] = array(
@@ -1312,7 +1305,7 @@ function rfds_sell_ammo_form($form, &$form_state) {
     '#default_value' => date('Y-m-d'),
     '#date_label_position' => 'within',
     '#title' => 'Sale date',
-    '#required' => TRUE,
+   
   );
   
   $form['submit'] = array(
