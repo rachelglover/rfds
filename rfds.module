@@ -129,6 +129,12 @@ function rfds_firearm_details_edit_form($form, &$form_state) {
     '#default_value' => (!empty($firearm->type) ? $firearm->type : NULL)
   );
   
+  $form['add']['calibre'] = array(
+    '#type' => 'textfield',
+    '#title' => 'Firearm calibre',
+    '#default_value' => (!empty($firearm->calibre) ? $firearm->calibre : NULL),
+  );
+  
   $form['add']['serial_number'] = array(
     '#type' => 'textfield',
     '#title' => 'Serial number',
@@ -240,6 +246,7 @@ function rfds_firearm_details_edit_form_submit($form, &$form_state) {
   db_update('rfds_firearms')
           ->fields(array(
             'type' => $form_state['values']['type'],
+            'calibre' => $form_state['values']['calibre'],
             'serial_number' => $form_state['values']['serial_number'],
             'description' => $form_state['values']['description'],
             'supplied_by' => $form_state['values']['supplied_by'],
@@ -329,6 +336,7 @@ function rfds_firearm_details_page($fid) {
   $output = "
     <table><tr><td>Firearm ID</td><td>$firearmId</td></tr>
                   <tr><td>Type</td><td>$firearm->type</td></tr>
+                  <tr><td>Calibre</td><td>$firearm->calibre</td></tr>
                   <tr><td>Serial number</td><td>$firearm->serial_number</td></tr>
                   <tr><td>Description</td><td>$firearm->description</td></tr>
                   <tr><td>Supplied by</td><td>$firearm->supplied_by <br>($firearm->supplied_by_address_1, $firearm->supplied_by_address_2, $firearm->supplied_by_address_town, $firearm->supplied_by_address_county, $firearm->supplied_by_address_postcode)</td></tr>
@@ -532,8 +540,14 @@ function rfds_add_firearm_form($form, &$form_state) {
   $form['add']['type'] = array(
     '#type' => 'textfield',
     '#title' => 'Firearm type',
-    '#description' => 'e.g. shotgun, .22 rifle',
+    '#description' => 'e.g. shotgun, rifle',
    
+  );
+  
+  $form['add']['calibre'] = array(
+    '#type' => 'textfield',
+    '#title' => 'Firearm calibre',
+    '#description' => 'e.g. .22, .177'
   );
   
   $form['add']['serial_number'] = array(
@@ -642,6 +656,7 @@ function rfds_add_firearm_form_submit($form, &$form_state) {
           ->fields(array(
             'recorded_by' => $user->uid,
             'type' => $form_state['values']['type'],
+            'calibre' => $form_state['values']['calibre'],
             'serial_number' => $form_state['values']['serial_number'],
             'description' => $form_state['values']['description'],
             'supplied_by' => $form_state['values']['supplied_by'],
@@ -682,6 +697,7 @@ function rfds_sell_firearm_form($form, &$form_state) {
   $markup = "This form is to record the same of the following firearm:<br>
             <table><tr><td>Firearm ID</td><td>$firearmId</td></tr>
                   <tr><td>Type</td><td>$firearm->type</td></tr>
+                  <tr><td>Calibre</td><td>$firearm->calibre</td></tr>
                   <tr><td>Serial number</td><td>$firearm->serial_number</td></tr>
                   <tr><td>Description</td><td>$firearm->description</td></tr>
                   <tr><td>Supplied by</td><td>$firearm->supplied_by</td></tr>
@@ -865,7 +881,7 @@ function rfds_sell_firearm_form_submit($form, &$form_state) {
      $to = "$police_email, $from";
      $subject = "Firearm sale notification";
      
-     $body = "To whom it may concern,\n\nWe would like to notify you of the sale of a firearm by ERC Trading Ltd. \n\nStock number: $fid\nFirearm description: Serial $firearm->serial_number, $firearm->type, $firearm->description\nDate supplied to ERC Trading: " . date('d-m-Y',$firearm->date_supplied) . "\nSupplied to ERC Trading by: $supplied_by\nDate sold: " . date('d-m-Y',$sold->date) . "\nSold to: $sold_to\nComments: $sold->comments\n\nMany thanks,\nERC Trading Ltd\n\n---\nThis is an automated email sent by the online RFD package supplied by foresightshooting.co.uk";
+     $body = "To whom it may concern,\n\nWe would like to notify you of the sale of a firearm by ERC Trading Ltd. \n\nStock number: $fid\nFirearm description: Serial $firearm->serial_number, $firearm->type, $firearm->calibre, $firearm->description\nDate supplied to ERC Trading: " . date('d-m-Y',$firearm->date_supplied) . "\nSupplied to ERC Trading by: $supplied_by\nDate sold: " . date('d-m-Y',$sold->date) . "\nSold to: $sold_to\nComments: $sold->comments\n\nMany thanks,\nERC Trading Ltd\n\n---\nThis is an automated email sent by the online RFD package supplied by foresightshooting.co.uk";
      
      $send = drupal_mail('rfds','police', $to, user_preferred_language($user), array('body' => $body, 'subject' => $subject, 'headers' => array()), $from, TRUE);
    }
@@ -886,6 +902,7 @@ function rfds_loan_firearm_form($form, &$form_state) {
   $markup = "This form is to record the loan of the following firearm:<br>
             <table><tr><td>Firearm ID</td><td>$firearmId</td></tr>
                   <tr><td>Type</td><td>$firearm->type</td></tr>
+                  <tr><td>Calibre</td><td>$firearm->calibre</td></tr>
                   <tr><td>Serial number</td><td>$firearm->serial_number</td></tr>
                   <tr><td>Description</td><td>$firearm->description</td></tr>
                   <tr><td>Supplied by</td><td>$firearm->supplied_by</td></tr>
@@ -1067,7 +1084,7 @@ function rfds_loan_firearm_form_submit($form, &$form_state) {
      $to = "$police_email, $from";
      $subject = "Firearm loan notification";
      
-     $body = "To whom it may concern,\n\nWe would like to notify you of the loan of a firearm by ERC Trading Ltd. \n\nStock number: $fid\nFirearm description: Serial $firearm->serial_number, $firearm->type, $firearm->description\nDate supplied to ERC Trading: " . date('d-m-Y',$firearm->date_supplied) . "\nSupplied to ERC Trading by: $supplied_by\nDate lent: " . date('d-m-Y',$sold->date) . "\nLent to: $sold_to\nComments: $sold->comments\n\nMany thanks,\nERC Trading Ltd\n\n---\nThis is an automated email sent by the online RFD package supplied by foresightshooting.co.uk";
+     $body = "To whom it may concern,\n\nWe would like to notify you of the loan of a firearm by ERC Trading Ltd. \n\nStock number: $fid\nFirearm description: Serial $firearm->serial_number, $firearm->type, $firearm->calibre, $firearm->description\nDate supplied to ERC Trading: " . date('d-m-Y',$firearm->date_supplied) . "\nSupplied to ERC Trading by: $supplied_by\nDate lent: " . date('d-m-Y',$sold->date) . "\nLent to: $sold_to\nComments: $sold->comments\n\nMany thanks,\nERC Trading Ltd\n\n---\nThis is an automated email sent by the online RFD package supplied by foresightshooting.co.uk";
      
      $send = drupal_mail('rfds','police', $to, user_preferred_language($user), array('body' => $body, 'subject' => $subject, 'headers' => array()), $from, TRUE);
    }
@@ -1389,6 +1406,7 @@ function rfds_firearms_stock_printstock_page() {
   $firearmsHeader = array(
     array('data' => 'Stock ID', 'field' => 'id', 'sort' => 'ASC'),
     array('data' => 'Type', 'field' => 'type'),
+    array('data' => 'Calibre', 'field' => 'calibre'),
     array('data' => 'Serial number', 'field' => 'serial_number'),
     array('data' => 'Description', 'field' => 'description'),
     array('data' => 'Stock location', 'field' => 'stock_location'),
@@ -1404,6 +1422,7 @@ function rfds_firearms_stock_printstock_page() {
      $firearmsRows[] = array(
       array('data' => $firearm->id),
       array('data' => $firearm->type),
+      array('data' => $firearm->calibre),
       array('data' => $firearm->serial_number),
       array('data' => $firearm->description),
       array('data' => $firearm->stock_location),
@@ -1435,6 +1454,7 @@ function rfds_firearms_stock_page() {
   $firearmsHeader = array(
     array('data' => 'Stock ID', 'field' => 'id', 'sort' => 'ASC'),
     array('data' => 'Type', 'field' => 'type'),
+    array('data' => 'Calibre', 'field' => 'calibre'),
     array('data' => 'Serial number', 'field' => 'serial_number'),
     array('data' => 'Description', 'field' => 'description'),
     array('data' => 'Stock location', 'field' => 'stock_location'),
@@ -1452,6 +1472,7 @@ function rfds_firearms_stock_page() {
     $firearmsRows[] = array(
       array('data' => $firearm->id),
       array('data' => $firearm->type),
+      array('data' => $firearm->calibre),
       array('data' => $firearm->serial_number),
       array('data' => $firearm->description),
       array('data' => $firearm->stock_location),
@@ -1468,6 +1489,7 @@ function rfds_firearms_stock_page() {
   $loansHeader = array(
     array('data' => 'Stock ID', 'field' => 'id', 'sort' => 'ASC'),
     array('data' => 'Type', 'field' => 'type'),
+    array('data' => 'Calibre','field' => 'calibre'),
     array('data' => 'Serial number', 'field' => 'serial_number'),
     array('data' => 'Description', 'field' => 'description'),
     array('data' => 'Stock location', 'field' => 'stock_location'),
@@ -1485,6 +1507,7 @@ function rfds_firearms_stock_page() {
     $loansRows[] = array(
       array('data' => $lent->id),
       array('data' => $lent->type),
+      array('data' => $lent->calibre),
       array('data' => $lent->serial_number),
       array('data' => $lent->description),
       array('data' => $lent->stock_location),
@@ -1501,6 +1524,7 @@ function rfds_firearms_stock_page() {
   $soldHeader = array(
     array('data' => 'Stock ID', 'field' => 'id', 'sort' => 'ASC'),
     array('data' => 'Type', 'field' => 'type'),
+    array('data' => 'Calibre', 'field' => 'calibre'),
     array('data' => 'Serial number', 'field' => 'serial_number'),
     array('data' => 'Description', 'field' => 'description'),
     array('data' => 'Stock location', 'field' => 'stock_location'),
@@ -1518,6 +1542,7 @@ function rfds_firearms_stock_page() {
     $soldRows[] = array(
       array('data' => $sold->id),
       array('data' => $sold->type),
+      array('data' => $sold->calibre),
       array('data' => $sold->serial_number),
       array('data' => $sold->description),
       array('data' => $sold->stock_location),

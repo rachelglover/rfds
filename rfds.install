@@ -28,6 +28,11 @@ function rfds_schema() {
         'type' => 'text',
         'not null' => FALSE,
       ),
+      'calibre' => array(
+        'description' => 'e.g. .22 .177',
+        'type' => 'text',
+        'not null' => FALSE,
+      ),
       'serial_number' => array(
         'description' => 'Serial number of the firearm',
         'type' => 'text',
