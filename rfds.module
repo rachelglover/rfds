@@ -63,6 +63,13 @@ function rfds_menu() {
     'access callback' => 'user_is_logged_in',
   );
   
+  $items['rfd/stock/ammo/%/edit'] = array(
+    'title' => 'Edit ammo details',
+    'page callback' => array('rfds_ammo_details_edit_page'),
+    'page arguments' => array(3),
+    'access callback' => 'user_is_logged_in',
+  );
+  
   $items['rfd/sales/firearm/%'] = array(
     'title' => 'Firearm sale record',
     'page callback' => array('rfds_firearms_sale_page'),
@@ -91,7 +98,105 @@ function rfds_menu() {
     'access callback' => 'user_is_logged_in', //will be specific later
   );
   
+  $items['rfd/stock/ammotype/%/add'] = array(
+    'title' => 'Add ammunition of a specific type',
+    'page callback' => array('rfds_ammotype_add_ammo_page'),
+    'page arguments' => array(3),
+    'access callback' => 'user_is_logged_in',
+  );
+  
   return $items;
+}
+
+/**
+ * Edit ammo details page
+ */
+function rfds_ammo_details_edit_page($aid) {
+  $form_state = array(
+    'title' => 'Edit ammo details',
+    'ajax' => TRUE, 
+    'args' => array(
+      'aid' => $aid,
+    )
+  );
+  
+  $ammo_edit_form = drupal_build_form('rfds_ammo_details_edit_form',$form_state);
+  return drupal_render($ammo_edit_form);
+}
+
+/**
+ * Edit ammo details form page
+ */
+function rfds_ammo_details_edit_form($form, &$form_state) {
+  $form = array();
+  $aid = $form_state['args']['aid'];
+  
+  $ammo = db_select('rfds_ammo','a')
+          ->fields('a',array())
+          ->condition('id',$aid,'=')
+          ->execute()->fetchObject();
+          
+  $typesResult = db_select('rfds_ammo_types','t')
+            ->fields('t',array())
+            ->execute();
+            
+  $types = array();
+  foreach ($typesResult as $type) {
+    $types[$type->id] = "$type->manufacturer $type->product";
+  }
+  
+  $form['type'] = array(
+    '#type' => 'select',
+    '#title' => 'Ammo type',
+    '#options' => $types,
+  );
+  
+  $form['batch'] = array(
+    '#type' => 'textfield',
+    '#title' => 'Batch',
+    '#default_value' => (!empty($ammo->batch) ? $ammo->batch : NULL)
+  );
+  
+  $form['quantity'] = array(
+    '#type' => 'textfield',
+    '#title' => 'Quantity',
+    '#default_value' => (!empty($ammo->quantity) ? $ammo->quantity : NULL),
+    '#description' => 'Adding more ammunition is better done ' . l('here',"rfd/stock/ammotype/$ammo->type/add") . ' instead of this page',
+  );
+  
+  $form['cost'] = array(
+    '#type' => 'textfield',
+    '#title' => 'Cost',
+    '#default_value' => (!empty($ammo->cost) ? $ammo->cost : NULL)
+  );
+  
+  $form['submit'] = array(
+    '#type' => 'submit',
+    '#value' => 'Submit',
+  );
+  
+  return $form;  
+}
+
+/**
+ * Edit ammo submit form
+ */
+function rfds_ammo_details_edit_form_submit($form, &$form_state) {
+  global $user;
+  $aid = $form_state['args']['aid'];
+  db_update('rfds_ammo')
+    ->fields(array(
+      'recorded_by' => $user->uid,
+      'type' => $form_state['values']['type'],
+      'batch' => $form_state['values']['batch'],
+      'quantity' => $form_state['values']['quantity'],
+      'cost' => $form_state['values']['cost'],
+      'timestamp' => time(),
+    ))
+    ->condition('id',$aid,'=')
+    ->execute();
+  drupal_set_message("Ammo A$aid has been edited");
+  drupal_goto("rfd/stock/ammo/$aid/");
 }
 
 /**
@@ -267,7 +372,6 @@ function rfds_firearm_details_edit_form_submit($form, &$form_state) {
   drupal_set_message("Firearm $fid has been edited.");
   drupal_goto("rfd/stock/firearms/$fid/");
 }
-
 /**
  * Return a loaned firearm to stock
  * Simple change of status ('stock') and movement recording
@@ -411,7 +515,8 @@ function rfds_ammo_details_page($aid) {
           <tr><td>Batch</td><td>$ammo->batch</td></tr>
           <tr><td>Quantity in stock</td><td>$ammo->quantity</td></tr>
           <tr><td colspan=2>Added to the database by $recordedUser->name on $date</td></tr></table>
-          <h4>Sales of this ammo</h4>
+          " . l("Edit this ammo","rfd/stock/ammo/$aid/edit") . 
+          "<h4>Sales of this ammo</h4>
   ";
   $salesHeader = array(
     array('data' => 'Stock ID', 'field' => 'id'),
