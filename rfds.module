@@ -109,6 +109,75 @@ function rfds_menu() {
 }
 
 /**
+ * Add more ammo page
+ */
+function rfds_ammotype_add_ammo_page($aid) {
+  $form_state = array(
+    'title' => 'Add more ammo',
+    'ajax' => TRUE,
+    'args' => array(
+      'aid' => $aid,
+    )
+  );
+  $add_ammo_form = drupal_build_form('rfds_ammotype_add_ammo_form',$form_state);
+  return drupal_render($add_ammo_form);
+}
+
+/**
+ * Add more ammo form
+ */
+function rfds_ammotype_add_ammo_form($form, &$form_state) {
+  $form = array();
+  $aid = $form_state['args']['aid'];
+  $ammo = db_select('rfds_ammo','a')
+          ->fields('a',array())
+          ->condition('id',$aid,'=')
+          ->execute()->fetchObject();
+          
+  $type = db_select('rfds_ammo_types','t')
+            ->fields('t',array())
+            ->condition('id',$ammo->type,'=')
+            ->execute()->fetchObject();
+  $form['markup'] = array(
+    '#markup' => "You are adding ammunition to A$aid ($type->manufacturer $type->product)"
+  );
+  $form['current_amount'] = array(
+    '#type' => 'hidden',
+    '#value' => $ammo->quantity,
+  );
+  $form['amount'] = array(
+    '#type' => 'textfield',
+    '#title' => 'Ammo amount',
+  );
+  
+  $form['submit'] = array(
+    '#type' => 'submit',
+    '#value' => 'Submit'
+  );
+  
+  return $form;
+}
+
+/**
+ * Add more ammo submit
+ */
+function rfds_ammotype_add_ammo_form_submit($form, &$form_state) {
+  global $user;
+  $aid = $form_state['args']['aid'];
+  $new_amount = $form_state['values']['current_amount'] + $form_state['values']['amount'];
+  db_update('rfds_ammo')
+    ->fields(array(
+      'recorded_by' => $user->uid,
+      'quantity' => $new_amount,
+      'timestamp' => time()
+    ))
+    ->condition('id',$aid,'=')
+    ->execute();
+  drupal_set_message("Added ammo to A$aid");
+  drupal_goto("rfd/stock/ammo");
+}
+
+/**
  * Edit ammo details page
  */
 function rfds_ammo_details_edit_page($aid) {
@@ -1699,7 +1768,7 @@ function rfds_ammo_stock_page() {
                         ->extend('TableSort')->orderByHeader($ammoHeader)
                         ->execute();
   foreach ($currentAmmo as $ammo) {
-    $options = l("View details","rfd/stock/ammo/$ammo->id") . "<br>" . l("Sell","rfd/sales/ammo/$ammo->id");
+    $options = l("View details","rfd/stock/ammo/$ammo->id") . "<br>" . l("Add more","rfd/stock/ammotype/$ammo->id/add") . "<br>". l("Sell","rfd/sales/ammo/$ammo->id");
     $ammoInfo = db_select('rfds_ammo_types','t')
                 ->fields('t',array())
                 ->condition('id',$ammo->type,'=')
