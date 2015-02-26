@@ -1523,7 +1523,7 @@ function rfds_sell_ammo_form_validate($form, &$form_state) {
                     ->execute()->fetchField();
   $new_stock = $current_stock - $form_state['values']['amount'];
   
-  if ($new_stock <= 0) {
+  if ($new_stock < 0) {
     form_set_error("","ERROR! You are trying to sell more of this ammunition than is currently in stock!");
   } 
 }
