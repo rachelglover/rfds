@@ -35,6 +35,13 @@ function rfds_menu() {
     'type' => MENU_CALLBACK,
   );
   
+  $items['rfd/stock/ammo/printstock'] = array(
+  	'title' => 'Current stock list (ammo)',
+  	'page callback' => array('rfds_ammo_stock_printstock_page'),
+  	'access callback' => 'user_is_logged_in',
+  	'type' => MENU_CALLBACK,
+  );
+  	
   $items['rfd/stock/firearms/%'] = array(
     'title' => 'Full details',
     'page callback' => array('rfds_firearm_details_page'),
@@ -218,6 +225,7 @@ function rfds_ammo_details_edit_form($form, &$form_state) {
     '#type' => 'select',
     '#title' => 'Ammo type',
     '#options' => $types,
+    '#default_value' => $ammo->type,
   );
   
   $form['batch'] = array(
@@ -236,7 +244,7 @@ function rfds_ammo_details_edit_form($form, &$form_state) {
   $form['cost'] = array(
     '#type' => 'textfield',
     '#title' => 'Cost',
-    '#default_value' => (!empty($ammo->cost) ? $ammo->cost : NULL)
+    '#default_value' => (!empty($ammo->cost) ? $ammo->cost : 0)
   );
   
   $form['submit'] = array(
@@ -623,7 +631,7 @@ function rfds_ammo_details_page($aid) {
       array('data' => $ammoType),
       array('data' => $ammoInfo->batch),
       array('data' => $sale->num_rounds),
-      array('data' => "$sale->supplied_to <br>$sale->supplied_to_certificate [$validFrom - $validTo]<br>
+      array('data' => "$sale->supplied_to <br>$sale->supplied_to_certificate [$validFrom to $validTo]<br>
                       $sale->supplied_to_address_1, $sale->supplied_to_address_2, $sale->supplied_to_address_town, $sale->supplied_to_address_county, $sale->supplied_to_address_postcode"),
       array('data' => "£".$sale->supplied_price),
       array('data' => $recorder->name),
@@ -1619,6 +1627,47 @@ function rfds_firearms_stock_printstock_page() {
 }
 
 /**
+ * Printer friendly firearm stock page
+ */
+function rfds_ammo_stock_printstock_page() {
+	global $user;
+	
+	$output = "All ammunition with more than zero in stock";
+	$ammoHeader = array(
+		array('data' => 'Stock ID', 'field' => 'id', 'sort' => 'ASC'),
+		array('data' => 'Type', 'field' => 'type'),
+		array('data' => 'Batch', 'field' => 'batch'),
+		array('data' => 'Quantity in stock', 'field' => 'quantity'),
+	);
+	$ammoRows = array();
+	$currentAmmo = db_select('rfds_ammo','a')
+					->fields('a', array())
+					->condition('quantity','0','!=')
+					->extend('TableSort')->orderByHeader($ammoHeader)
+					->execute();
+	foreach ($currentAmmo as $ammo) {
+		$ammo_type_info = db_select('rfds_ammo_types','t')
+						->fields('t',array())
+						->condition('id',$ammo->type,'=')
+						->execute()->fetchObject();
+		if ($ammo_type_info != NULL) {
+			$ammo_type = $ammo_type_info->manufacturer . " " . $ammo_type_info->product;
+		} else {
+			$ammo_type = "No name found in database";
+		}
+		$ammoRows[] = array(
+			array('data' => "A" . $ammo->id),
+			array('data' => $ammo_type),
+			array('data' => $ammo->batch),
+			array('data' => $ammo->quantity)
+		);
+	}
+	$output .= theme('table', array('header' => $ammoHeader, 'rows' => $ammoRows, 'empty' => 'There is no ammo currently in stock'));
+	
+	return $output;
+}
+
+/**
  * Page that shows the current stock of firearms
  */
 function rfds_firearms_stock_page() {
@@ -1754,6 +1803,7 @@ function rfds_ammo_stock_page() {
    * List the current 'In stock' stock of firearms as a sortable table.
    */
   $output .= "<h4>Current stock</h4>";
+  $output .= l("Printer-friendly stock list","rfd/stock/ammo/printstock");
   $ammoHeader = array(
     array('data' => 'Stock ID', 'field' => 'id', 'sort' => 'ASC', 'width' => '5%'),
     array('data' => 'Type', 'field' => 'type'),
@@ -1796,6 +1846,7 @@ function rfds_ammo_stock_page() {
     array('data' => 'Batch', 'field' => 'batch'),
     array('data' => 'Quantity sold', 'field' => 'num_rounds'),
     array('data' => 'Sold to', 'field' => 'supplied_to'),
+    array('data' => 'Price', 'field' => 'supplied_price'),
     array('data' => 'Sold by', 'field' => 'recorded_by')
   );
   $salesRows = array();
@@ -1815,13 +1866,18 @@ function rfds_ammo_stock_page() {
                     ->execute()->fetchAssoc();
     $ammoType = $ammoTypeInfo['manufacturer'] . " " . $ammoTypeInfo['product'];
     $recorder = user_load($sale->recorded_by);
+	$validFrom = date('d-m-Y',$sale->supplied_to_certificate_valid_from);
+    $validTo = date('d-m-Y', $sale->supplied_to_certificate_valid_to);
     $salesRows[] = array(
       array('data' => "A" .$sale->ammo),
       array('data' => date('d-m-Y',$sale->date)),
       array('data' => $ammoType),
       array('data' => $ammoInfo->batch),
       array('data' => $sale->num_rounds),
-      array('data' => "$sale->supplied_to ($sale->supplied_to_certificate)"),
+      array('data' => "$sale->supplied_to <br>$sale->supplied_to_certificate [$validFrom to $validTo]<br>
+                      $sale->supplied_to_address_1, $sale->supplied_to_address_2, $sale->supplied_to_address_town, $sale->supplied_to_address_county, $sale->supplied_to_address_postcode"),
+      array('data' => "£".$sale->supplied_price),
+      //array('data' => "$sale->supplied_to ($sale->supplied_to_certificate)"), //@TODO 
       array('data' => $recorder->name),
     );
   }
