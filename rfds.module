@@ -4,6 +4,17 @@
  * @file
  * This file contains the custom rfds module functions
  */
+ 
+ /**
+  * @TODO
+  * There's a bug in the ammo types and names - disjointed 0/1 issue somewhere. 
+  * Richard would also like to edit previous ammo sales (and firearm sales?) for the 
+  * ocassions where he gets extra information from Edward. 
+  * It would also be prudent to add a 'delete' button to ammo stock for duplications and
+  * when the ammo type is discontinued or something? Might be good to have a health
+  * warning on this delete button...or check that no sales have ever been made. Or it 
+  * doesn't delete if it's ever been recorded on a sale. 
+  */
 
 /**
  * Implements hook_menu
