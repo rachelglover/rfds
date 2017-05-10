@@ -1,4 +1,4 @@
 rfd_erct
 ========
 
-Custom implementation of RFD for ERCT
+Custom Drupal 7 module of RFD for ERCT
